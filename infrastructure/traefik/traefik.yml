@@ -1,0 +1,18 @@
+# Static Traefik configuration for local development.
+# Production (Hetzner) overrides entrypoints/certificatesResolvers for
+# Cloudflare-issued TLS; see infrastructure/hetzner/README.md.
+
+api:
+  dashboard: true
+  insecure: true # local only - disabled/authenticated in production
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  docker:
+    exposedByDefault: false
+
+log:
+  level: INFO

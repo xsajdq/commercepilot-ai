@@ -1,0 +1,6 @@
+celery[redis]==5.4.0
+redis==5.2.1
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+httpx==0.28.1
+sentry-sdk[celery]==2.19.2
