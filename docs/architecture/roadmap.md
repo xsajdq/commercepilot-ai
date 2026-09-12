@@ -6,7 +6,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 0 — Project bootstrap**: monorepo skeleton, Docker Compose
       stack (Traefik, Next.js, FastAPI, Celery worker + beat, Postgres,
       Redis), env handling, health checks, CI.
-- [ ] **Phase 1 — Authentication + multi-tenancy**: users, tenants,
+- [x] **Phase 1 — Authentication + multi-tenancy**: users, tenants,
       memberships, roles, sessions, JWT + refresh tokens, tenant
       middleware. Gate: a user in Tenant A cannot access Tenant B's data.
 - [ ] **Phase 2 — Domain model**: Product, Variant, Brand, Category, Offer,
@@ -47,5 +47,32 @@ testable and merged before the next begins — never one giant change.
 Phase 0 complete: see `docker-compose.yml` for the local stack. `apps/api`
 exposes `/health` and `/health/ready` (checks Postgres + Redis
 connectivity); `apps/worker` runs Celery + Beat with a `worker.ping` sanity
-task; `apps/web` is a minimal Next.js + Tailwind shell. No domain logic,
-auth, or connectors exist yet — that starts at Phase 1.
+task; `apps/web` is a minimal Next.js + Tailwind shell.
+
+Phase 1 complete: `apps/api/app/db/models` has `User`, `Tenant`,
+`Membership` (role: owner/manager/operator/viewer), and `RefreshToken`,
+migrated via Alembic (`alembic.ini` + `migrations/` at the repo root,
+`alembic upgrade head` verified upgrade → downgrade → upgrade). Auth lives
+in `apps/api/app/auth`: `/auth/register`, `/auth/login` (auto-selects the
+tenant on a single membership, otherwise returns the membership list for
+the client to choose from), `/auth/refresh` (single-use, rotating refresh
+tokens), `/auth/switch-tenant`, `/auth/tenants`, `/auth/me`. The tenant
+middleware (`get_current_membership` in `app/auth/dependencies.py`) reads
+`tenant_id` only from the signed access token issued at login/switch and
+re-verifies it against the `memberships` table on every request — never
+from a client-supplied header or param — so a revoked membership or a
+forged claim is rejected immediately, not just at the next login. This is
+covered by `apps/api/tests/test_auth.py::TestTenantIsolation`, including a
+test that re-signs a valid token with a different `tenant_id` claim and
+confirms it's still rejected (defense in depth beyond "the app never sends
+that value"). Passwords are hashed with `bcrypt` directly (not `passlib`,
+whose bcrypt backend-detection code is broken against `bcrypt>=4`).
+`apps/web` has minimal `/register`, `/login`, and `/dashboard` pages
+exercising the full flow client-side; verified against a live API +
+Postgres + Redis with a real Chromium browser (register → dashboard →
+logout → login → dashboard → cleared-session redirect). Session tokens
+live in `localStorage` for now, which is a pragmatic MVP choice, not a
+hardened one - moving to httpOnly cookies is Phase 21 work, not Phase 1.
+
+No product/order domain model or connectors exist yet — that starts at
+Phase 2.
