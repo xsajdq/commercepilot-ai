@@ -9,6 +9,20 @@ class ConnectorCategory(BaseModel):
     parent_external_id: str | None = None
 
 
+class CategoryParameter(BaseModel):
+    """A category-specific attribute a marketplace requires (or allows)
+    when listing in that category - e.g. Allegro's per-category mandatory
+    parameters (brand, size, ...). Platforms without this concept (e.g.
+    WooCommerce) never produce these."""
+
+    external_id: str
+    name: str
+    required: bool
+    # For a fixed-choice ("dictionary") parameter, the allowed values as
+    # {"id": ..., "value": ...}; empty for a free-text/numeric parameter.
+    dictionary_values: list[dict[str, str]] = Field(default_factory=list)
+
+
 class ConnectorProduct(BaseModel):
     """What a connector reads from / writes to an external platform.
 
@@ -29,6 +43,10 @@ class ConnectorProduct(BaseModel):
     category_external_id: str | None = None
     image_urls: list[str] = Field(default_factory=list)
     status: str = "draft"
+    # Category parameter values, e.g. Allegro's per-category mandatory
+    # attributes: {parameter_external_id: [value_or_value_id, ...]}.
+    # Platforms without this concept (e.g. WooCommerce) just ignore it.
+    parameters: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class PriceUpdate(BaseModel):

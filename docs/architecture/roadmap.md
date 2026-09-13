@@ -15,7 +15,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 3 — Connector framework**: `CommerceConnector` interface +
       mock connector, tested without any real store.
 - [x] **Phase 4 — WooCommerce connector**.
-- [ ] **Phase 5 — Allegro connector**.
+- [x] **Phase 5 — Allegro connector**.
 - [ ] **Phase 6 — Sync engine**: pagination, retries, rate limits, backoff,
       idempotency, partial failures.
 - [ ] **Phase 7 — AI tool system**: ToolRegistry, ToolSchema, ToolExecutor,
@@ -129,4 +129,30 @@ engine, not built into the connector itself. Tested (11 new tests) with
 driven through `httpx.MockTransport` - still no real store, no new
 HTTP-mocking dependency.
 
-No Allegro connector or AI agents exist yet — that starts at Phase 5.
+Phase 5 complete: `CommerceConnector` gained two methods -
+`get_category_parameters` and `publish_offer` - needed because Allegro's
+offer model is genuinely different from WooCommerce's: an offer belongs
+to a category with its own mandatory attributes, and goes live only
+through a distinct publish step rather than being live the moment it's
+created. Platforms without either concept (WooCommerce, `MockConnector`)
+implement them as empty-list / best-effort no-op rather than omitting
+them, so a caller can call both regardless of platform.
+`cp_connectors.allegro_oauth` implements the real OAuth2 Authorization
+Code flow (`build_authorization_url`, `exchange_code_for_token`,
+`refresh_access_token` - Allegro tokens are short-lived, ~12h) - it's
+mechanics only, since there's no "connect your Allegro account" HTTP
+endpoint yet to trigger the redirect. `cp_connectors.AllegroConnector`
+uses an already-issued Bearer token against `api.allegro.pl`: creates
+land as drafts (`publication.status=INACTIVE`) until `publish_offer`,
+`ConnectorProduct.parameters` carries category parameter values, and
+`upload_image` does Allegro's required host-then-reference two-step.
+Known simplifications (documented in the package README): no
+delivery/shipping template modeling, `get_categories` returns only the
+top level, offer descriptions don't round-trip (Allegro's rich-text
+"sections" format isn't modeled). Tested (26 new tests, bringing
+`packages/connectors` to 49) against `FakeAllegroAPI` and a fake OAuth
+token endpoint, both via `httpx.MockTransport`, plus new coverage for
+the two Protocol additions on `MockConnector` and `WooCommerceConnector`
+- no real Allegro account or sandbox credentials needed anywhere.
+
+No sync engine or AI agents exist yet — that starts at Phase 6.

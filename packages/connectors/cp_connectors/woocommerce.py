@@ -10,6 +10,7 @@ from cp_connectors.exceptions import (
     ConnectorRateLimitError,
 )
 from cp_connectors.types import (
+    CategoryParameter,
     ConnectorCategory,
     ConnectorProduct,
     PriceUpdate,
@@ -191,3 +192,14 @@ class WooCommerceConnector:
             json={"images": [{"src": url} for url in [*current.image_urls, image_url]]},
         )
         return UploadedImage(external_id=external_id, url=image_url)
+
+    async def get_category_parameters(self, category_external_id: str) -> list[CategoryParameter]:
+        """WooCommerce has no per-category mandatory-parameter concept
+        via this API - always empty."""
+        return []
+
+    async def publish_offer(self, external_id: str) -> None:
+        """WooCommerce products go live as soon as their status is
+        'publish'; this just ensures that (raises ConnectorNotFoundError
+        via _request if external_id doesn't exist)."""
+        await self._request("PUT", f"/products/{external_id}", json={"status": "publish"})

@@ -4,6 +4,7 @@ from copy import deepcopy
 from cp_connectors.base import CommerceConnector
 from cp_connectors.exceptions import ConnectorNotFoundError
 from cp_connectors.types import (
+    CategoryParameter,
     ConnectorCategory,
     ConnectorProduct,
     PriceUpdate,
@@ -16,11 +17,17 @@ class MockConnector(CommerceConnector):
     """An in-memory fake implementing CommerceConnector - no network
     calls, no real store. Lets the sync engine, AI tools, and this
     package's own tests exercise the connector interface end to end
-    before any real platform (WooCommerce, Phase 4) exists."""
+    before any real platform (WooCommerce, Allegro, ...) exists."""
 
-    def __init__(self, *, categories: list[ConnectorCategory] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        categories: list[ConnectorCategory] | None = None,
+        category_parameters: dict[str, list[CategoryParameter]] | None = None,
+    ) -> None:
         self._products: dict[str, ConnectorProduct] = {}
         self._categories = categories or []
+        self._category_parameters = category_parameters or {}
         self._id_counter = itertools.count(1)
 
     async def get_products(
@@ -74,6 +81,14 @@ class MockConnector(CommerceConnector):
             update={"image_urls": [*product.image_urls, image_url]}
         )
         return UploadedImage(external_id=external_id, url=image_url)
+
+    async def get_category_parameters(self, category_external_id: str) -> list[CategoryParameter]:
+        return deepcopy(self._category_parameters.get(category_external_id, []))
+
+    async def publish_offer(self, external_id: str) -> None:
+        self._require_existing(external_id)
+        product = self._products[external_id]
+        self._products[external_id] = product.model_copy(update={"status": "active"})
 
     def _require_existing(self, external_id: str) -> None:
         if external_id not in self._products:

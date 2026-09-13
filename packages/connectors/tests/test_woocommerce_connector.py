@@ -227,3 +227,23 @@ async def test_upload_image_appends_to_existing_images(connector: WooCommerceCon
 
     fetched = await connector.get_product(created.external_id)
     assert fetched.image_urls == ["https://example.com/a.jpg", "https://example.com/b.jpg"]
+
+
+async def test_get_category_parameters_is_always_empty(connector: WooCommerceConnector) -> None:
+    assert await connector.get_category_parameters("9") == []
+
+
+async def test_publish_offer_sets_status_to_publish(connector: WooCommerceConnector) -> None:
+    created = await connector.create_product(
+        ConnectorProduct(sku="SKU-5", name="Scarf", status="draft")
+    )
+
+    await connector.publish_offer(created.external_id)
+
+    fetched = await connector.get_product(created.external_id)
+    assert fetched.status == "publish"
+
+
+async def test_publish_offer_for_unknown_product_raises(connector: WooCommerceConnector) -> None:
+    with pytest.raises(ConnectorNotFoundError):
+        await connector.publish_offer("999")

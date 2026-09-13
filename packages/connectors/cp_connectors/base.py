@@ -1,6 +1,7 @@
 from typing import Protocol, runtime_checkable
 
 from cp_connectors.types import (
+    CategoryParameter,
     ConnectorCategory,
     ConnectorProduct,
     PriceUpdate,
@@ -58,4 +59,19 @@ class CommerceConnector(Protocol):
     async def upload_image(self, external_id: str, image_url: str) -> UploadedImage:
         """external_id is the product the image belongs to. Raises
         ConnectorNotFoundError if it doesn't exist."""
+        ...
+
+    async def get_category_parameters(self, category_external_id: str) -> list[CategoryParameter]:
+        """Category-specific attributes required (or allowed) to list in
+        this category - e.g. Allegro's per-category mandatory parameters
+        (brand, size, ...), set via ConnectorProduct.parameters. Platforms
+        without this concept (e.g. WooCommerce) return an empty list."""
+        ...
+
+    async def publish_offer(self, external_id: str) -> None:
+        """Makes a previously-created draft listing live. Platforms where
+        create_product already makes it live treat this as a no-op (or an
+        explicit "ensure it's live" call); platforms with a distinct
+        draft -> active step (e.g. Allegro) perform it here. Raises
+        ConnectorNotFoundError if external_id doesn't exist."""
         ...

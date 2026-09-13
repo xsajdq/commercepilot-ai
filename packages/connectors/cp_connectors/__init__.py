@@ -1,3 +1,10 @@
+from cp_connectors.allegro import AllegroConnector
+from cp_connectors.allegro_oauth import (
+    AllegroTokenResponse,
+    build_authorization_url,
+    exchange_code_for_token,
+    refresh_access_token,
+)
 from cp_connectors.base import CommerceConnector
 from cp_connectors.exceptions import (
     ConnectorAuthError,
@@ -7,6 +14,7 @@ from cp_connectors.exceptions import (
 )
 from cp_connectors.mock import MockConnector
 from cp_connectors.types import (
+    CategoryParameter,
     ConnectorCategory,
     ConnectorProduct,
     PriceUpdate,
@@ -16,6 +24,9 @@ from cp_connectors.types import (
 from cp_connectors.woocommerce import WooCommerceConnector
 
 __all__ = [
+    "AllegroConnector",
+    "AllegroTokenResponse",
+    "CategoryParameter",
     "CommerceConnector",
     "ConnectorAuthError",
     "ConnectorCategory",
@@ -28,4 +39,7 @@ __all__ = [
     "StockUpdate",
     "UploadedImage",
     "WooCommerceConnector",
+    "build_authorization_url",
+    "exchange_code_for_token",
+    "refresh_access_token",
 ]

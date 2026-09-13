@@ -5,7 +5,13 @@ import pytest
 from cp_connectors.base import CommerceConnector
 from cp_connectors.exceptions import ConnectorNotFoundError
 from cp_connectors.mock import MockConnector
-from cp_connectors.types import ConnectorCategory, ConnectorProduct, PriceUpdate, StockUpdate
+from cp_connectors.types import (
+    CategoryParameter,
+    ConnectorCategory,
+    ConnectorProduct,
+    PriceUpdate,
+    StockUpdate,
+)
 
 
 @pytest.fixture
@@ -103,3 +109,34 @@ async def test_returned_dtos_are_copies_not_live_references(connector: MockConne
 
     fetched = await connector.get_product(created.external_id)
     assert fetched.name == "Cap"
+
+
+async def test_publish_offer_sets_status_active(connector: MockConnector) -> None:
+    created = await connector.create_product(ConnectorProduct(sku="SKU-5", name="Scarf"))
+    assert created.status == "draft"
+
+    await connector.publish_offer(created.external_id)
+
+    fetched = await connector.get_product(created.external_id)
+    assert fetched.status == "active"
+
+
+async def test_publish_offer_for_unknown_product_raises(connector: MockConnector) -> None:
+    with pytest.raises(ConnectorNotFoundError):
+        await connector.publish_offer("ghost")
+
+
+async def test_get_category_parameters_returns_configured_list() -> None:
+    connector = MockConnector(
+        category_parameters={
+            "cat-1": [CategoryParameter(external_id="p1", name="Brand", required=True)]
+        }
+    )
+    parameters = await connector.get_category_parameters("cat-1")
+    assert parameters == [CategoryParameter(external_id="p1", name="Brand", required=True)]
+
+
+async def test_get_category_parameters_for_unknown_category_returns_empty(
+    connector: MockConnector,
+) -> None:
+    assert await connector.get_category_parameters("unknown-category") == []
