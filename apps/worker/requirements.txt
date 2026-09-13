@@ -1,6 +1,11 @@
 celery[redis]==5.4.0
 redis==5.2.1
 sqlalchemy==2.0.36
+# SQLAlchemy's own dependency spec only pulls greenlet in for
+# python_version < 3.13 - on 3.13+ (this project's pinned version) it's
+# silently skipped, which breaks every AsyncSession call at runtime with
+# "ValueError: the greenlet library is required". Pin it explicitly.
+greenlet==3.5.5
 asyncpg==0.30.0
 httpx==0.28.1
 sentry-sdk[celery]==2.19.2
