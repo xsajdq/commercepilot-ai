@@ -1,9 +1,7 @@
 FROM python:3.13-slim AS base
 
-# Build context is the repo root (not apps/worker): requirements.txt's
-# `-e ../../packages/...` lines are resolved relative to the requirements
-# file itself, so packages/ must already exist at that same relative
-# position before pip install runs (same reasoning as apps/api/Dockerfile).
+# Build context is the repo root (not apps/worker): this image also needs
+# packages/, which lives one level up from apps/worker.
 WORKDIR /repo
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -15,7 +13,10 @@ COPY packages/shared packages/shared
 COPY packages/domain packages/domain
 COPY packages/connectors packages/connectors
 COPY packages/sync packages/sync
-RUN pip install -r apps/worker/requirements.txt
+# requirements.txt's `-e ../../packages/...` lines are resolved relative
+# to pip's current working directory, not the requirements file's own
+# location - `cd` into apps/worker first so they land on packages/ above.
+RUN cd apps/worker && pip install -r requirements.txt
 
 COPY apps/worker/worker apps/worker/worker
 
