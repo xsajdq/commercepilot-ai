@@ -19,37 +19,15 @@ from cp_domain.price import Price  # noqa: E402
 from cp_domain.product import Product  # noqa: E402
 from cp_domain.variant import Variant  # noqa: E402
 from cp_shared.crypto import encrypt_credentials  # noqa: E402
-from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin  # noqa: E402
-from sqlalchemy import String, text  # noqa: E402
-from sqlalchemy.orm import Mapped, mapped_column  # noqa: E402
+from cp_shared.db import Base  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
-from worker.db import async_session_factory, engine, get_encryption_key  # noqa: E402
-
-
-class _Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Test-only mirror of apps/api's Tenant model (same `tenants` table):
-    apps/worker must not import apps/api's package just to satisfy
-    Connection.tenant_id's FK in a test fixture.
-    """
-
-    __tablename__ = "tenants"
-
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
-
-
-class _User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Test-only mirror of apps/api's User model (same `users` table),
-    needed only so `Approval.decided_by`'s FK has a target table when
-    building the full schema - the sync task never touches it.
-    """
-
-    __tablename__ = "users"
-
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
-
+# _TenantRef/_UserRef aren't test-only: worker/db.py defines them for
+# production too, so any tenant-scoped flush from a real task resolves
+# its FK to `tenants`/`users` in this process's own metadata. Reused
+# here rather than redefined, so the schema this suite builds is exactly
+# what a real worker process registers.
+from worker.db import _TenantRef, async_session_factory, engine, get_encryption_key  # noqa: E402
 
 _TABLES = ", ".join(t.name for t in reversed(Base.metadata.sorted_tables))
 
@@ -86,7 +64,7 @@ def _clean_tables():
 def make_tenant(name: str = "Test Tenant") -> uuid.UUID:
     async def _create() -> uuid.UUID:
         async with async_session_factory() as db:
-            tenant = _Tenant(
+            tenant = _TenantRef(
                 name=name, slug=name.lower().replace(" ", "-") + "-" + uuid.uuid4().hex[:8]
             )
             db.add(tenant)

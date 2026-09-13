@@ -375,3 +375,58 @@ own logic, tenant isolation) bringing it to 60, and 4 new DB-integration
 tests in `apps/worker` for the Celery task (proposes, forces `UNKNOWN`
 end-to-end, never double-proposes, reports a missing product cleanly)
 bringing it to 12.
+
+## Interlude: a clickable UI on top of Phases 1-10
+
+Out of phase order, on request: everything through Phase 10 was real but
+only reachable from tests and Celery tasks - no HTTP surface beyond auth,
+no way to see any of it in a browser. This interlude wires up the first
+real HTTP API and a minimal web UI on top, so the whole pipeline is
+clickable, not just testable:
+
+- `apps/api` gained `connections` (list/create/trigger a sync),
+  `products` (list/manually create/trigger a pricing or content
+  recommendation), and `recommendations` (list/approve/reject) routes,
+  plus a `Celery` client (`app/core/celery_client.py`) that enqueues
+  tasks by name - apps/api still never imports apps/worker's code, only
+  `send_task`s into the same Redis broker. Approving/rejecting calls
+  `cp_policies` directly and synchronously (not via Celery): the
+  resulting DB write is fast and local, unlike an actual sync or an LLM
+  call, so CLAUDE.md #13's "no long-running jobs in a request handler"
+  doesn't apply to it. `cp_ai`, `cp_pricing`, and `cp_policies` moved
+  from apps/api's test-only dependencies to its real ones.
+- `apps/web` gained a shared `AppShell` (nav + session guard) and three
+  pages - Connections, Products, Recommendations - plus a real Dashboard
+  replacing the Phase 1 placeholder. Products can be added manually
+  (SKU/cost/price) for testing without a live store; each product/offer
+  has buttons to queue the pricing or content agent, and approving a
+  recommendation shows the change land for real.
+
+**A real, previously-undiscovered production bug came out of actually
+running this stack in a browser, not from any test:** every apps/worker
+task that flushes a `TenantScopedMixin` row (`sync_connection`,
+`generate_price_recommendation`, `generate_product_content_recommendation`)
+crashed with `NoReferencedTableError: ... could not find table 'tenants'`
+the moment it ran for real. SQLAlchemy resolves a `ForeignKey`'s target
+table once per mapper, the first time any row of that type is flushed in
+a process, to work out flush ordering - and apps/worker's own code never
+defines or imports anything mapped to `tenants`/`users` (that's apps/api's
+job, and apps/worker must never import apps/api's code). Every test
+suite in `apps/worker` had passed because its `conftest.py` *did* define
+local `_Tenant`/`_User` mirror classes - but only to build the test
+schema, never imported by any production module, so the real worker
+process never had them. Fixed by moving those mirror classes into
+`worker/db.py` itself (`_TenantRef`/`_UserRef`) as real, permanent
+worker code - not a test fixture - with tests now importing them from
+there instead of redefining their own copies. This had been silently
+broken since Phase 6.
+
+No new automated tests for `apps/web` (this project has never had a JS
+test runner; `npm run lint`/`typecheck`/`build` are its only automated
+gates) - verified instead by actually running the full stack locally and
+driving it with Playwright end to end: register → add a connection → add
+a product → generate a pricing recommendation → approve it → watch the
+price actually change and a real `AuditEvent` land. 18 new DB-integration
+tests in `apps/api/tests/test_api_routes.py` cover the new routes
+directly (tenant isolation, 404s/409s, the full propose → approve/reject
+loop), bringing `apps/api` to 78.

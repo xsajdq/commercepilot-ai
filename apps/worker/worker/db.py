@@ -2,11 +2,48 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from cp_shared.db import Base
+from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from sqlalchemy import String
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.pool import NullPool
 
 __all__ = ["Base", "get_encryption_key", "session_scope"]
+
+
+class _TenantRef(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A minimal stand-in for apps/api's real `Tenant` model, same
+    `tenants` table - apps/worker must never import apps/api's code to
+    get the real class, but every `TenantScopedMixin` table's
+    `ForeignKey("tenants.id")` needs a mapped `Table` object to resolve
+    against *in this process's own metadata* the first time any such row
+    is flushed here (sync, a pricing/content recommendation, ...) - not
+    just at schema-creation time in a test. SQLAlchemy resolves that FK
+    to determine flush ordering even when the tenant_id value itself
+    isn't being touched, so without this, every tenant-scoped insert
+    from apps/worker fails with `NoReferencedTableError`, no matter how
+    innocuous the FK column's actual value is. Never queried through
+    this class - the real row was created by apps/api.
+    """
+
+    __tablename__ = "tenants"
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+
+
+class _UserRef(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Same reasoning as `_TenantRef`, for `Approval.decided_by`'s FK to
+    `users.id` - `cp_policies.submit_for_approval` creates an `Approval`
+    row (with `decided_by` still `NULL` until a human decides), and that
+    insert needs `users` resolvable for the exact same flush-ordering
+    reason."""
+
+    __tablename__ = "users"
+
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
 
 # Mirrors apps/api/app/db/base.py's engine setup, but reads its own
 # environment directly (worker.celery_app already does this rather than

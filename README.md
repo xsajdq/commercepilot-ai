@@ -8,13 +8,16 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 5** (Allegro
-connector): registration, login, tenant-scoped JWT sessions, role-based
-membership, the full e-commerce domain model (products, variants,
-offers, orders, recommendations, approvals, audit log, ...), and real
-WooCommerce + Allegro connectors (the latter with a full OAuth2
-Authorization Code flow) are all live. No sync engine or AI agents exist
-yet.
+what's next. This repo is currently at the end of **Phase 10** (product
+agent): registration, login, tenant-scoped JWT sessions, role-based
+membership, the full e-commerce domain model, real WooCommerce + Allegro
+connectors, a sync engine, the AI tool system + approval engine
+(`Recommendation -> PendingApproval -> Approved/Rejected -> Executing ->
+Success/Failed`), a deterministic pricing engine, and two working agents
+(pricing, product content) are all live - plus a minimal web UI
+(connections, products, recommendations/approvals) wired to a real HTTP
+API on top of all of it, so the whole pipeline is clickable end to end,
+not just testable from the CLI.
 
 ## Repository layout
 
@@ -26,8 +29,11 @@ apps/
 packages/
   shared/     cp_shared - the shared SQLAlchemy Base + mixins
   domain/     cp_domain - the e-commerce domain model (products, orders, ...)
-  connectors/ cp_connectors - CommerceConnector interface + MockConnector
-  ai/ pricing/ policies/   (empty scaffolds - Phase 4+)
+  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro
+  sync/       cp_sync - the sync engine (retry/backoff, idempotent upsert)
+  pricing/    cp_pricing - deterministic pricing engine (no AI, no deps)
+  ai/         cp_ai - tool system, AIProvider, pricing + product agents
+  policies/   cp_policies - the approval engine
 infrastructure/
   docker/ hetzner/ traefik/ backups/
 migrations/   Alembic migrations (auth tables + domain model)
@@ -65,7 +71,8 @@ This starts Traefik, the Next.js frontend, the FastAPI backend, a Celery
 worker, a Celery beat scheduler, Postgres, and Redis.
 
 - Frontend: http://localhost:3000 (or http://commercepilot.localhost via
-  Traefik) - `/register`, `/login`, `/dashboard`
+  Traefik) - `/register`, `/login`, `/dashboard`, `/connections`,
+  `/products`, `/recommendations`
 - API: http://localhost:8000/docs (or http://api.commercepilot.localhost)
 - API health: http://localhost:8000/health and `/health/ready` (checks
   Postgres + Redis connectivity)

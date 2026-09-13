@@ -17,8 +17,18 @@ python-jose[cryptography]==3.3.0
 bcrypt==5.0.0
 cryptography==44.0.0
 sentry-sdk[fastapi]==2.19.2
+# apps/api only ever enqueues tasks by name (see app/core/celery_client.py)
+# - it never imports apps/worker's task modules, so no `include=[...]`
+# worker config is needed here, just the client library.
+celery[redis]==5.4.0
 
-# Local packages (see packages/shared, packages/domain) - install order
-# matters: cp_domain depends on cp_shared.
+# Local packages (see packages/shared, packages/domain, packages/pricing,
+# packages/ai, packages/policies) - install order matters: each depends
+# on the ones above it. apps/api needs the AI/approval packages for real
+# now (the recommendations API resolves and runs approved tool calls),
+# not just for its test suite.
 -e ../../packages/shared
 -e ../../packages/domain
+-e ../../packages/pricing
+-e ../../packages/ai
+-e ../../packages/policies

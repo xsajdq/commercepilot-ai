@@ -28,3 +28,6 @@ npm-debug.log*
 
 # Docker
 *.log
+
+# Redis (local dev dumps, e.g. running redis-server from an app dir)
+dump.rdb

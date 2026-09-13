@@ -9,15 +9,3 @@ mypy==1.14.0
 # orchestration against a real Postgres, reusing this app's test fixtures.
 -e ../../packages/connectors
 -e ../../packages/sync
-
-# Test-only: cp_ai's ToolExecutor needs a real AsyncSession + schema to
-# prove audit logging and tenant scoping actually work, same reasoning
-# as cp_sync above. packages/pricing has no tests of its own that need a
-# DB, but cp_ai now depends on it (its pricing agent), so pip needs it
-# resolvable here too.
--e ../../packages/pricing
--e ../../packages/ai
-
-# Test-only: cp_policies' approval engine resumes a real cp_ai tool call
-# and writes a real AuditEvent - needs the same real schema/session.
--e ../../packages/policies

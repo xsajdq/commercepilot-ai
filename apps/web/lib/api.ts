@@ -79,3 +79,160 @@ export function fetchMe(accessToken: string): Promise<MeResponse> {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+function authHeaders(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}` };
+}
+
+export type ConnectionPlatform = "woocommerce" | "allegro" | "shoper" | "prestashop" | "idosell";
+export type ConnectionStatus = "connected" | "disconnected" | "error";
+
+export type ConnectionOut = {
+  id: string;
+  platform: ConnectionPlatform;
+  name: string;
+  status: ConnectionStatus;
+  last_synced_at: string | null;
+  last_error: string | null;
+};
+
+export type OfferOut = {
+  id: string;
+  connection_id: string;
+  status: string;
+  price_amount: string | null;
+  currency: string | null;
+  stock_quantity: number | null;
+};
+
+export type ProductOut = {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  cost: string | null;
+  status: string;
+  offers: OfferOut[];
+};
+
+export type RecommendationStatus =
+  | "proposed"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "executing"
+  | "success"
+  | "failed";
+
+export type RecommendationOut = {
+  id: string;
+  type: string;
+  risk_level: "low" | "medium" | "high";
+  status: RecommendationStatus;
+  entity_type: string;
+  entity_id: string;
+  title: string;
+  reason: string | null;
+  confidence: string | null;
+  created_at: string;
+};
+
+export type TaskTriggeredResponse = { task_id: string };
+
+export function listConnections(token: string): Promise<ConnectionOut[]> {
+  return request("/connections", { headers: authHeaders(token) });
+}
+
+export function createConnection(
+  token: string,
+  payload: { platform: ConnectionPlatform; name: string; credentials: Record<string, string> },
+): Promise<ConnectionOut> {
+  return request("/connections", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function syncConnection(token: string, connectionId: string): Promise<TaskTriggeredResponse> {
+  return request(`/connections/${connectionId}/sync`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export function listProducts(token: string): Promise<ProductOut[]> {
+  return request("/products", { headers: authHeaders(token) });
+}
+
+export function createProduct(
+  token: string,
+  payload: {
+    connection_id: string;
+    sku: string;
+    name: string;
+    cost?: string;
+    vat_rate?: string;
+    price_amount: string;
+    currency?: string;
+    stock_quantity?: number;
+  },
+): Promise<ProductOut> {
+  return request("/products", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateContentRecommendation(
+  token: string,
+  productId: string,
+): Promise<TaskTriggeredResponse> {
+  return request(`/products/${productId}/generate-content-recommendation`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export function generatePricingRecommendation(
+  token: string,
+  offerId: string,
+): Promise<TaskTriggeredResponse> {
+  return request(`/offers/${offerId}/generate-pricing-recommendation`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export function listRecommendations(
+  token: string,
+  status?: RecommendationStatus,
+): Promise<RecommendationOut[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request(`/recommendations${query}`, { headers: authHeaders(token) });
+}
+
+export function approveRecommendation(
+  token: string,
+  id: string,
+  decisionReason?: string,
+): Promise<RecommendationOut> {
+  return request(`/recommendations/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ decision_reason: decisionReason ?? null }),
+  });
+}
+
+export function rejectRecommendation(
+  token: string,
+  id: string,
+  decisionReason?: string,
+): Promise<RecommendationOut> {
+  return request(`/recommendations/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ decision_reason: decisionReason ?? null }),
+  });
+}
