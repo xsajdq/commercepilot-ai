@@ -20,7 +20,7 @@ testable and merged before the next begins — never one giant change.
       idempotency, partial failures.
 - [x] **Phase 7 — AI tool system**: ToolRegistry, ToolSchema, ToolExecutor,
       ToolPermission, ToolResult.
-- [ ] **Phase 8 — Approval engine**: Recommendation → PendingApproval →
+- [x] **Phase 8 — Approval engine**: Recommendation → PendingApproval →
       Approved/Rejected → Executing → Success workflow.
 - [ ] **Phase 9 — Pricing agent**: deterministic pricing engine first, AI
       recommendation layer on top.
@@ -244,6 +244,39 @@ accident, masking both issues - `greenlet` is now pinned explicitly in
 both apps, and this session's own verification was redone against real
 Python 3.13 venvs to make sure it wasn't hiding anything else.
 
-AI agents don't exist yet — that starts at Phase 9, once Phase 8's
-approval engine gives `ToolExecutor` something real to hand
-medium/high-risk calls to instead of refusing them outright.
+Phase 8 complete: new `packages/policies` (`cp_policies`) is the
+approval engine - `propose_recommendation` records an AI-proposed
+action `PROPOSED`, storing the exact `tool_name`/`tool_arguments` a
+blocked `ToolExecutor.execute()` call was made with in `payload` (the
+AI gets one shot at what it's asking for, not a second one after a
+human has already read and approved the first); `submit_for_approval`
+moves it into the human queue (`PENDING_APPROVAL` + a `PENDING`
+`Approval` row - this is where a real Policy Engine would run further
+checks before a human ever sees it, Phase 8 keeps it a pass-through);
+`approve` resolves the stored tool in a `ToolRegistry`, re-validates
+its arguments, and calls the handler *directly* - never through
+`ToolExecutor.execute()` again, which would just re-hit the same risk
+gate forever - always landing on a terminal `SUCCESS`/`FAILED` and
+writing a real `AuditEvent` (`approval_id` set) for a mutating tool
+either way; `reject` marks it `REJECTED` and calls nothing, audits
+nothing. Both `approve` and `reject` scope every lookup by `tenant_id`
+and raise rather than silently no-op across a tenant boundary or on a
+recommendation that isn't actually pending - a decision is made exactly
+once. No HTTP routes yet: this is the engine only, proven end-to-end by
+driving `cp_ai`'s real `update_price` tool through the full
+propose → submit → approve loop and watching the `Price` row and a real
+`AuditEvent` land correctly - an approval queue UI/API is later work
+once there's a caller (an agent, Phase 9+) actually proposing things.
+Known simplification, documented in the package README: approving isn't
+protected against a concurrent double-approval race (no row locking) -
+fine for now with no UI and a single approver, worth revisiting once
+multiple people can act on the same queue. Tested: `packages/policies`'
+own 10 tests (state-machine guards against a mocked `AsyncSession`, no
+DB needed, new CI job) and 6 new DB-integration tests in
+`apps/api/tests/test_approval_engine.py` (the full happy path, the
+reject path leaving the price untouched, tenant isolation, and the
+double-decision/not-proposed guards), bringing `apps/api` to 57.
+
+AI agents don't exist yet — that starts at Phase 9, now that Phase 8's
+approval engine gives `ToolExecutor`'s `pending_approval` calls
+somewhere real to go instead of a dead end.

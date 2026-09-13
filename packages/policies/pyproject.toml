@@ -1,0 +1,16 @@
+[project]
+name = "cp-policies"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["cp-ai", "cp-domain", "cp-shared", "sqlalchemy>=2.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cp_policies*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

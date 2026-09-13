@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 from app.db import models  # noqa: E402,F401  (registers metadata)
 from app.db.base import Base, async_session_factory, engine  # noqa: E402
 from app.db.models.tenant import Tenant  # noqa: E402
+from app.db.models.user import User  # noqa: E402
 from app.main import app  # noqa: E402
 
 _TABLES = ", ".join(
@@ -62,6 +63,14 @@ async def make_tenant(db: AsyncSession, name: str = "Test Tenant") -> Tenant:
     db.add(tenant)
     await db.commit()
     return tenant
+
+
+async def make_user(db: AsyncSession, email: str | None = None) -> User:
+    email = email or f"approver-{uuid.uuid4().hex[:8]}@test.com"
+    user = User(email=email, hashed_password="not-a-real-hash", full_name="Test Approver")
+    db.add(user)
+    await db.commit()
+    return user
 
 
 async def make_connection(
