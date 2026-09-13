@@ -42,6 +42,15 @@ testable and merged before the next begins — never one giant change.
 - [ ] **Phase 22 — Beta** (5 pilot stores: 2 WooCommerce, 2 Allegro-heavy,
       1 complex).
 
+Further-out planning, captured now but not actionable until the phases
+it depends on are current: `docs/architecture/product-vision.md` (what
+the three demo-worthy workflows are and which phases each needs),
+`docs/security/README.md` (the mandatory security test categories -
+tenant isolation, secret leakage, prompt injection, tool authorization,
+approval bypass), and `docs/architecture/deployment.md` (deploy
+pipeline, environments, monitoring). Don't start building against these
+directly - check which phase is next above first.
+
 ## Status notes
 
 Phase 0 complete: see `docker-compose.yml` for the local stack. `apps/api`

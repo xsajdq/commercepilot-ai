@@ -26,3 +26,7 @@ for Phase 21, tracked here so it isn't forgotten.
 
 Provisioning scripts (cloud-init, firewall rules, SSH hardening) will be
 added here once the app is ready to deploy — not part of Phase 0.
+
+Deploy pipeline, environments (local/staging/production), and monitoring
+plan: see `docs/architecture/deployment.md` — also deferred work
+(Phase 21+), captured now so it isn't lost by the time it's next.
