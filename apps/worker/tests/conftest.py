@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+from decimal import Decimal
 
 # Must be set before `worker.db`/`worker.celery_app` are imported: both
 # read the environment at import time.
@@ -13,6 +14,10 @@ os.environ.setdefault("ENCRYPTION_KEY", "PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9O
 
 import pytest  # noqa: E402
 from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus  # noqa: E402
+from cp_domain.offer import Offer  # noqa: E402
+from cp_domain.price import Price  # noqa: E402
+from cp_domain.product import Product  # noqa: E402
+from cp_domain.variant import Variant  # noqa: E402
 from cp_shared.crypto import encrypt_credentials  # noqa: E402
 from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin  # noqa: E402
 from sqlalchemy import String, text  # noqa: E402
@@ -110,5 +115,31 @@ def make_connection(
             db.add(connection)
             await db.commit()
             return connection.id
+
+    return asyncio.run(_create())
+
+
+def make_offer_with_price(
+    tenant_id: uuid.UUID,
+    connection_id: uuid.UUID,
+    *,
+    sku: str = "SKU-1",
+    cost: Decimal | None = Decimal("60"),
+    price_amount: Decimal = Decimal("100.00"),
+) -> uuid.UUID:
+    async def _create() -> uuid.UUID:
+        async with async_session_factory() as db:
+            product = Product(tenant_id=tenant_id, sku=sku, name="Test product", cost=cost)
+            db.add(product)
+            await db.flush()
+            variant = Variant(tenant_id=tenant_id, product_id=product.id, sku=sku)
+            db.add(variant)
+            await db.flush()
+            offer = Offer(tenant_id=tenant_id, connection_id=connection_id, variant_id=variant.id)
+            db.add(offer)
+            await db.flush()
+            db.add(Price(tenant_id=tenant_id, offer_id=offer.id, amount=price_amount))
+            await db.commit()
+            return offer.id
 
     return asyncio.run(_create())

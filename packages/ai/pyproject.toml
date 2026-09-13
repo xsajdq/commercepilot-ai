@@ -2,7 +2,7 @@
 name = "cp-ai"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["cp-domain", "cp-shared", "pydantic>=2", "sqlalchemy>=2.0"]
+dependencies = ["cp-domain", "cp-pricing", "cp-shared", "pydantic>=2", "sqlalchemy>=2.0"]
 
 [build-system]
 requires = ["setuptools>=68"]

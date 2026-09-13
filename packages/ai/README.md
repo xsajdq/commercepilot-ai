@@ -1,11 +1,12 @@
 # packages/ai (`cp_ai`)
 
-Phase 7's tool system - the only way an AI agent (starting Phase 9) is
-ever allowed to touch anything. Agents, prompts, and the `AIProvider`
-abstraction land later, alongside the first agent that actually needs
-them; this package only has to exist first because CLAUDE.md requires
-every AI action to go through an explicitly defined, permissioned tool -
-never `execute_sql`, never an arbitrary HTTP request.
+Phase 7's tool system - the only way an AI agent is ever allowed to
+touch anything - plus, starting Phase 9, the first actual agent built on
+top of it. Prompts and the `AIProvider` abstraction land later, whenever
+an agent first needs to actually call an LLM; this package's first job
+was existing at all, because CLAUDE.md requires every AI action to go
+through an explicitly defined, permissioned tool - never `execute_sql`,
+never an arbitrary HTTP request.
 
 ## `cp_ai.tools`
 
@@ -72,8 +73,32 @@ Two concrete tools proving the framework works end to end against real
   approval workflow, so calling it through the executor always comes
   back as `requires_approval` with the price untouched.
 
-Run this package's own tests (registry + executor mechanics, using a
-mocked `AsyncSession` - no DB needed):
+## `cp_ai.agents.pricing_agent`
+
+Phase 9's pricing agent: `build_pricing_proposal(*, product, price,
+offer_id, ...)` decides *whether* a price is worth proposing a change
+for and, if so, builds the proposal - it never mutates anything itself.
+It pulls `product.cost`/`vat_rate` (converting the stored percentage to
+a fraction), calls `cp_pricing.compute_price_bounds` (the actual math -
+CLAUDE.md #10, this package never re-derives it), and - only when the
+computed `recommended_price` differs from the current one and the
+margin targets are actually reachable - returns a `PricingProposal`
+carrying the exact `update_price` tool call (`tool_name`/
+`tool_arguments`) a human will later approve, with its `risk_level`
+read directly off `update_price_tool()`'s own permission so the two can
+never silently drift apart. Returns `None` (nothing to propose) when
+`cost` is `UNKNOWN`, the margin is unreachable
+(`PricingInfeasibleError`), or the price is already right.
+
+`apps/worker`'s `generate_price_recommendation` Celery task is what
+actually runs this against a real `Offer`/`Price`/`Product` and, if it
+gets a proposal back, hands it to `cp_policies.propose_recommendation` +
+`submit_for_approval` - closing the loop from deterministic math all the
+way to a human's approval queue.
+
+Run this package's own tests (registry + executor mechanics using a
+mocked `AsyncSession`, and the pricing agent's own decision logic - no
+DB needed for either):
 
 ```bash
 cd packages/ai

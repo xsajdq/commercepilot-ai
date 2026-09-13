@@ -22,7 +22,7 @@ testable and merged before the next begins — never one giant change.
       ToolPermission, ToolResult.
 - [x] **Phase 8 — Approval engine**: Recommendation → PendingApproval →
       Approved/Rejected → Executing → Success workflow.
-- [ ] **Phase 9 — Pricing agent**: deterministic pricing engine first, AI
+- [x] **Phase 9 — Pricing agent**: deterministic pricing engine first, AI
       recommendation layer on top.
 - [ ] **Phase 10 — Product agent**: structured content generation with
       `UNKNOWN` for missing specs.
@@ -277,6 +277,46 @@ DB needed, new CI job) and 6 new DB-integration tests in
 reject path leaving the price untouched, tenant isolation, and the
 double-decision/not-proposed guards), bringing `apps/api` to 57.
 
-AI agents don't exist yet — that starts at Phase 9, now that Phase 8's
-approval engine gives `ToolExecutor`'s `pending_approval` calls
-somewhere real to go instead of a dead end.
+Phase 9 complete: new `packages/pricing` (`cp_pricing`) is the
+deterministic pricing engine CLAUDE.md #10 requires ("math is code") -
+zero dependencies, not even on `cp_domain`. `compute_price_bounds`
+takes cost/VAT/marketplace-fee/payment-fee/shipping (all rates as
+fractions, not percentages) plus target/minimum margin and optional
+competitor prices/stock/velocity, and returns a `minimum_price`
+(protects the margin floor), a `recommended_price` (aimed at the target
+margin, but never priced above the priciest visible competitor), the
+margin that recommendation actually delivers, a deterministically-built
+`reason` string, and a `confidence` score reduced for each piece of
+missing context. Raises `PricingInfeasibleError` rather than returning a
+number when even the margin floor is mathematically unreachable at any
+price (fees alone consume too much of revenue) - a real signal, not a
+bug to paper over.
+
+`cp_ai.agents.pricing_agent.build_pricing_proposal` is the "AI
+recommendation layer on top" the phase name promises: it reads a
+product's cost/VAT, calls the engine above, and - only when there's an
+actual, reachable change worth proposing - packages it as the exact
+`update_price` tool call (Phase 7) a human will approve, with its
+`risk_level` read directly off `update_price_tool()`'s own permission
+rather than duplicated. It never mutates anything itself. `apps/worker`
+gained the `worker.generate_price_recommendation` Celery task that
+actually runs this against a real `Offer`/`Price`/`Product` and, if it
+gets a proposal back, feeds it straight into Phase 8's
+`propose_recommendation` + `submit_for_approval` - the full chain from
+deterministic math to a human's approval queue, with an idempotency
+check (CLAUDE.md #11) so a repeated run never stacks duplicate pending
+recommendations for the same offer.
+
+Tested: `packages/pricing`'s own 17 tests (pure math, no DB, new CI
+job), 5 new tests in `packages/ai` for the pricing agent's decision
+logic (no DB), and 5 new DB-integration tests in `apps/worker`
+(proposes when a change is warranted, skips when already at the
+recommended price, skips a missing/costless offer, and never
+double-proposes on a second run), bringing `apps/worker` to 8.
+
+AI agents exist now, but only this one, and only as a deterministic
+decision-maker wearing an "AI-proposed" hat - no real LLM call happens
+anywhere in this phase. Prompts and the `AIProvider` abstraction
+(Anthropic/OpenAI, interchangeable per CLAUDE.md #17) still don't exist
+- nothing has needed to generate text yet. That starts at Phase 10's
+product agent.

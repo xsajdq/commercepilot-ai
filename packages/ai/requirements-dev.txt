@@ -1,5 +1,6 @@
 -e ../shared
 -e ../domain
+-e ../pricing
 -e .
 pytest==8.3.4
 pytest-asyncio==0.25.1
