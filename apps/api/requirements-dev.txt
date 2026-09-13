@@ -9,3 +9,8 @@ mypy==1.14.0
 # orchestration against a real Postgres, reusing this app's test fixtures.
 -e ../../packages/connectors
 -e ../../packages/sync
+
+# Test-only: no agent calls tools yet (that starts Phase 9), but cp_ai's
+# ToolExecutor needs a real AsyncSession + schema to prove audit logging
+# and tenant scoping actually work, same reasoning as cp_sync above.
+-e ../../packages/ai

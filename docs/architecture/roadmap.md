@@ -18,7 +18,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 5 — Allegro connector**.
 - [x] **Phase 6 — Sync engine**: pagination, retries, rate limits, backoff,
       idempotency, partial failures.
-- [ ] **Phase 7 — AI tool system**: ToolRegistry, ToolSchema, ToolExecutor,
+- [x] **Phase 7 — AI tool system**: ToolRegistry, ToolSchema, ToolExecutor,
       ToolPermission, ToolResult.
 - [ ] **Phase 8 — Approval engine**: Recommendation → PendingApproval →
       Approved/Rejected → Executing → Success workflow.
@@ -198,4 +198,52 @@ partial-failure fix) bringing `apps/api` to 42, and 3 new
 (worker's test suite is new this phase, with its own
 `requirements-dev.txt`/`ruff.toml`/CI job).
 
-AI agents don't exist yet — that starts at Phase 7.
+Phase 7 complete: new `packages/ai` (`cp_ai`) is the tool system every
+future agent must go through - `ToolContext` (a tool call's `tenant_id`/
+actor identity, always injected by the caller, never accepted as a tool
+argument: `ToolRegistry.register` refuses any `args_model` that declares
+a `tenant_id` field at all, so there's no argument even a
+prompt-injected model could smuggle one through - CLAUDE.md #7, #18),
+`ToolResult` (success/data/error, plus entity/before/after for
+mutations), `ToolSchema` (name, description, Pydantic `args_model`,
+`ToolPermission`, handler), `ToolPermission` (`risk_level` +
+`mutates`, tracked separately since a high-risk read needs approval but
+audits nothing, while a low-risk write is auditable but never blocks),
+`ToolRegistry`, and `ToolExecutor` - which runs
+Validate → Risk/Approval-gate → Execute → Audit for one `ToolCall`.
+Anything above `LOW` risk short-circuits to `ToolResult.pending_approval`
+before the handler ever runs, since the real approval workflow is Phase
+8's job; a successful or failed run of a `mutates=True` tool always
+gets a real `AuditEvent` row either way. Two builtin tools prove this
+against real `cp_domain` data: `get_product` (`LOW`, read-only, runs
+immediately) and `update_price` (`HIGH`, mutates our own `Price` row
+only - never pushes to a marketplace, since that's the Phase 9 pricing
+agent's job on top of a deterministic pricing engine, not a generic
+tool's to decide) - calling it through the executor always comes back
+`requires_approval` with nothing touched. Tested: `packages/ai`'s own 14
+tests (registry + executor mechanics against a mocked `AsyncSession`, no
+DB needed, new CI job) and 9 new DB-integration tests in
+`apps/api/tests/test_ai_tools.py` (tenant isolation on `get_product`, the
+approval gate leaving the price untouched, a real `AuditEvent` persisted
+for a low-risk mutation) bringing `apps/api` to 51.
+
+While building this phase, a `docker compose up --build` from a clean
+Windows/WSL2 machine surfaced two latent bugs neither `docker compose
+build` nor any test suite here had caught, now fixed: `apps/api`'s and
+`apps/worker`'s Dockerfiles ran `pip install -r requirements.txt` from
+the repo root, but pip resolves a requirements file's relative
+`-e ../../packages/...` paths against pip's own working directory, not
+the file's location, so from `/repo` they pointed above the repo
+entirely (`cd` into the app directory before `pip install` fixed it);
+and SQLAlchemy's own dependency metadata only pulls in `greenlet`
+(required for every `AsyncSession` call) for `python_version < 3.13` -
+on 3.13, this project's pinned version, it's silently skipped, so every
+DB call crashed at runtime with `ValueError: the greenlet library is
+required`. Local dev venvs here had been created with a lower Python by
+accident, masking both issues - `greenlet` is now pinned explicitly in
+both apps, and this session's own verification was redone against real
+Python 3.13 venvs to make sure it wasn't hiding anything else.
+
+AI agents don't exist yet — that starts at Phase 9, once Phase 8's
+approval engine gives `ToolExecutor` something real to hand
+medium/high-risk calls to instead of refusing them outright.
