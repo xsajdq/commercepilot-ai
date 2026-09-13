@@ -1,23 +1,14 @@
-import json
 from typing import Any
 
-from cryptography.fernet import Fernet
+from cp_shared.crypto import decrypt_credentials as _decrypt_credentials
+from cp_shared.crypto import encrypt_credentials as _encrypt_credentials
 
 from app.core.config import get_settings
 
 
-def _fernet() -> Fernet:
-    return Fernet(get_settings().encryption_key.encode("utf-8"))
-
-
 def encrypt_credentials(data: dict[str, Any]) -> str:
-    """Encrypts a connector credentials dict (API keys, OAuth tokens, ...)
-    for storage in Connection.encrypted_credentials. Never store the
-    plaintext dict directly - CLAUDE.md forbids plaintext credentials."""
-    payload = json.dumps(data).encode("utf-8")
-    return _fernet().encrypt(payload).decode("utf-8")
+    return _encrypt_credentials(data, key=get_settings().encryption_key)
 
 
 def decrypt_credentials(token: str) -> dict[str, Any]:
-    payload = _fernet().decrypt(token.encode("utf-8"))
-    return json.loads(payload)
+    return _decrypt_credentials(token, key=get_settings().encryption_key)

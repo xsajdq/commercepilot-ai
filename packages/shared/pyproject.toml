@@ -2,7 +2,7 @@
 name = "cp-shared"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["sqlalchemy>=2.0"]
+dependencies = ["sqlalchemy>=2.0", "cryptography>=42"]
 
 [build-system]
 requires = ["setuptools>=68"]

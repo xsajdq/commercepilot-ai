@@ -1,4 +1,5 @@
 import os
+import uuid
 
 # Must be set before any `app.*` module is imported: app.db.base creates its
 # async engine from get_settings() at import time, and Settings is cached.
@@ -10,11 +11,14 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-production")
 
 import pytest_asyncio  # noqa: E402
+from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from app.db import models  # noqa: E402,F401  (registers metadata)
 from app.db.base import Base, async_session_factory, engine  # noqa: E402
+from app.db.models.tenant import Tenant  # noqa: E402
 from app.main import app  # noqa: E402
 
 _TABLES = ", ".join(
@@ -51,3 +55,24 @@ async def client():
 async def db_session():
     async with async_session_factory() as session:
         yield session
+
+
+async def make_tenant(db: AsyncSession, name: str = "Test Tenant") -> Tenant:
+    tenant = Tenant(name=name, slug=name.lower().replace(" ", "-") + "-" + uuid.uuid4().hex[:8])
+    db.add(tenant)
+    await db.commit()
+    return tenant
+
+
+async def make_connection(
+    db: AsyncSession, tenant: Tenant, name: str = "My Woo Store"
+) -> Connection:
+    connection = Connection(
+        tenant_id=tenant.id,
+        platform=ConnectionPlatform.WOOCOMMERCE,
+        name=name,
+        status=ConnectionStatus.CONNECTED,
+    )
+    db.add(connection)
+    await db.commit()
+    return connection

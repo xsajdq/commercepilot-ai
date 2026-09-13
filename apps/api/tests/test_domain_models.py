@@ -7,7 +7,6 @@ from cp_domain.approval import Approval, ApprovalStatus
 from cp_domain.audit_event import ActorType, AuditEvent, AuditResult
 from cp_domain.brand import Brand
 from cp_domain.category import Category
-from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.order import Order, OrderItem, OrderStatus
 from cp_domain.price import Price
@@ -26,30 +25,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.tenant import Tenant
+from tests.conftest import make_connection as _make_connection
+from tests.conftest import make_tenant as _make_tenant
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
-
-
-async def _make_tenant(db: AsyncSession, name: str = "Test Tenant") -> Tenant:
-    tenant = Tenant(name=name, slug=name.lower().replace(" ", "-") + "-" + uuid.uuid4().hex[:8])
-    db.add(tenant)
-    await db.commit()
-    return tenant
-
-
-async def _make_connection(
-    db: AsyncSession, tenant: Tenant, name: str = "My Woo Store"
-) -> Connection:
-    connection = Connection(
-        tenant_id=tenant.id,
-        platform=ConnectionPlatform.WOOCOMMERCE,
-        name=name,
-        status=ConnectionStatus.CONNECTED,
-    )
-    db.add(connection)
-    await db.commit()
-    return connection
 
 
 class TestProductCatalogGraph:

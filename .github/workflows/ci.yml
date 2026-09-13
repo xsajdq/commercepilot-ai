@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ruff
-      - run: ruff check packages/shared packages/domain packages/connectors
+      - run: ruff check packages/shared packages/domain packages/connectors packages/sync
 
   connectors:
     name: Connectors (test)
@@ -77,21 +77,54 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pytest
 
-  worker:
-    name: Worker (import check)
+  sync:
+    name: Sync (test)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/worker
+        working-directory: packages/sync
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: apps/worker/requirements.txt
-      - run: pip install -r requirements.txt
-      - run: python -c "from worker.celery_app import app; from worker.tasks.health import ping; assert ping.run() == 'pong'"
+          cache-dependency-path: packages/sync/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
+
+  worker:
+    name: Worker (lint + test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: commercepilot
+          POSTGRES_PASSWORD: commercepilot
+          POSTGRES_DB: commercepilot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U commercepilot"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/worker
+    env:
+      DATABASE_URL: postgresql+asyncpg://commercepilot:commercepilot@localhost:5432/commercepilot_test
+      REDIS_URL: redis://localhost:6379/0
+      ENCRYPTION_KEY: PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/worker/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: python -c "from worker.tasks.health import ping; assert ping.run() == 'pong'"
+      - run: pytest
 
   web:
     name: Web (lint + typecheck + build)

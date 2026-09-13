@@ -3,3 +3,9 @@ pytest==8.3.4
 pytest-asyncio==0.25.1
 ruff==0.8.4
 mypy==1.14.0
+
+# Test-only: apps/api doesn't trigger syncs itself yet (that's
+# apps/worker's job), but its test suite exercises cp_sync's DB-layer
+# orchestration against a real Postgres, reusing this app's test fixtures.
+-e ../../packages/connectors
+-e ../../packages/sync

@@ -16,7 +16,7 @@ testable and merged before the next begins — never one giant change.
       mock connector, tested without any real store.
 - [x] **Phase 4 — WooCommerce connector**.
 - [x] **Phase 5 — Allegro connector**.
-- [ ] **Phase 6 — Sync engine**: pagination, retries, rate limits, backoff,
+- [x] **Phase 6 — Sync engine**: pagination, retries, rate limits, backoff,
       idempotency, partial failures.
 - [ ] **Phase 7 — AI tool system**: ToolRegistry, ToolSchema, ToolExecutor,
       ToolPermission, ToolResult.
@@ -164,4 +164,38 @@ token endpoint, both via `httpx.MockTransport`, plus new coverage for
 the two Protocol additions on `MockConnector` and `WooCommerceConnector`
 - no real Allegro account or sandbox credentials needed anywhere.
 
-No sync engine or AI agents exist yet — that starts at Phase 6.
+Phase 6 complete: new `packages/sync` (`cp_sync`) is the sync engine -
+`retry_with_backoff` (hand-rolled exponential backoff with jitter,
+honoring `ConnectorRateLimitError.retry_after_seconds`, never retrying
+permanent `ConnectorAuthError`/`ConnectorNotFoundError`), a
+`connector_factory.build_connector` dispatching `Connection.platform` to
+a concrete connector from decrypted credentials, and
+`products.sync_products` - the orchestration function pulling every
+product from a connector and upserting it into `cp_domain.Product` →
+`Variant` → `Offer` → `Price`/`Stock`, matched by each table's existing
+unique natural key so re-running a sync never creates duplicates. A page
+fetch that exhausts its retries stops the sync early with
+`SyncResult.fatal_error` set, without losing products already committed
+from earlier pages. Partial failures are isolated **per item via a
+SAVEPOINT** (`db.begin_nested()`) rather than a full session rollback -
+the latter was tried first and reliably corrupted the async session for
+the *next* item (`MissingGreenlet` on its very next query), which is
+exactly the "partial failures must not abort a whole sync" case Phase 6
+scoped in. `apps/worker` gained its own DB layer (`worker/db.py`, a
+`NullPool` engine - a pooled one breaks across the fresh event loop each
+Celery task invocation gets via `asyncio.run`) and the
+`worker.sync_connection` Celery task, which loads a `Connection`
+scoped to the caller's `tenant_id`, decrypts its credentials
+(`cp_shared.crypto`), builds the connector, and runs `sync_products`.
+Credentials are decrypted only inside the worker process, in memory, for
+the duration of one sync - never logged, never persisted plaintext.
+Tested: `packages/sync`'s own 11 tests (retry + connector factory, no DB
+needed), 9 new DB-integration tests in `apps/api/tests/test_sync_products.py`
+(idempotency, cross-connection SKU sharing, pagination, transient-error
+retry, exhausted-retry fatal error without losing prior data, the
+partial-failure fix) bringing `apps/api` to 42, and 3 new
+`apps/worker/tests/test_sync_task.py` tests against a real Postgres
+(worker's test suite is new this phase, with its own
+`requirements-dev.txt`/`ruff.toml`/CI job).
+
+AI agents don't exist yet — that starts at Phase 7.

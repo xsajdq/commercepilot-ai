@@ -8,7 +8,7 @@ app = Celery(
     "commercepilot",
     broker=redis_url,
     backend=redis_url,
-    include=["worker.tasks.health"],
+    include=["worker.tasks.health", "worker.tasks.sync"],
 )
 
 app.conf.update(

@@ -70,13 +70,15 @@ services:
 
   worker:
     build:
-      context: ./apps/worker
+      context: .
+      dockerfile: apps/worker/Dockerfile
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://commercepilot:commercepilot@postgres:5432/commercepilot}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,13 +88,15 @@ services:
 
   scheduler:
     build:
-      context: ./apps/worker
+      context: .
+      dockerfile: apps/worker/Dockerfile
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://commercepilot:commercepilot@postgres:5432/commercepilot}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=}
     depends_on:
       postgres:
         condition: service_healthy
