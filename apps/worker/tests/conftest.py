@@ -119,6 +119,26 @@ def make_connection(
     return asyncio.run(_create())
 
 
+def make_product(
+    tenant_id: uuid.UUID,
+    *,
+    sku: str = "SKU-1",
+    name: str = "Test product",
+    description: str | None = "Old description",
+    ean: str | None = None,
+) -> uuid.UUID:
+    async def _create() -> uuid.UUID:
+        async with async_session_factory() as db:
+            product = Product(
+                tenant_id=tenant_id, sku=sku, name=name, description=description, ean=ean
+            )
+            db.add(product)
+            await db.commit()
+            return product.id
+
+    return asyncio.run(_create())
+
+
 def make_offer_with_price(
     tenant_id: uuid.UUID,
     connection_id: uuid.UUID,

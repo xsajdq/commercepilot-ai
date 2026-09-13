@@ -24,7 +24,7 @@ testable and merged before the next begins — never one giant change.
       Approved/Rejected → Executing → Success workflow.
 - [x] **Phase 9 — Pricing agent**: deterministic pricing engine first, AI
       recommendation layer on top.
-- [ ] **Phase 10 — Product agent**: structured content generation with
+- [x] **Phase 10 — Product agent**: structured content generation with
       `UNKNOWN` for missing specs.
 - [ ] **Phase 11 — Listing agent** (Allegro publication workflow).
 - [ ] **Phase 12 — Catalog agent** (daily catalog health audit).
@@ -320,3 +320,58 @@ anywhere in this phase. Prompts and the `AIProvider` abstraction
 (Anthropic/OpenAI, interchangeable per CLAUDE.md #17) still don't exist
 - nothing has needed to generate text yet. That starts at Phase 10's
 product agent.
+
+Phase 10 complete: `cp_ai.providers.AIProvider` is the abstraction
+CLAUDE.md #17 requires - one method, `generate_structured(*,
+system_prompt, user_prompt, schema, schema_name) -> dict` - so an agent
+never depends on a vendor SDK directly. `AnthropicProvider` is the first
+concrete implementation, using Anthropic's tool-use mechanism to force
+structured output (`schema` becomes a single tool's `input_schema`,
+`tool_choice` forces exactly that tool), pinned to `anthropic==0.39.0`
+specifically because it's built on plain `httpx` - a newer major version
+turned out to depend on a different, unfamiliar HTTP stack, and pinning
+to a well-understood version made it possible to test the same way as
+the WooCommerce/Allegro connectors (`httpx.MockTransport`, no real API
+key or network call). `FakeAIProvider` is this package's `MockConnector`
+- a canned, call-recording double for testing an agent's own logic.
+
+`cp_ai.agents.product_agent.build_product_content_proposal` is the
+product agent: generates a title/description/bullet points via the
+provider, and for every specification field the product has no real
+source data for, **forces the literal string `"UNKNOWN"` into the
+result after the call returns** - overwriting whatever the model said,
+even a plausible-looking invented value. That overwrite matters because
+`product.description` feeds the prompt as context and is untrusted
+external content per CLAUDE.md #18 - potentially synced from a listing
+an attacker controls, possibly trying to steer the model into inventing
+a spec. The system prompt asks it not to; the code does not trust that
+it complied. A new builtin tool, `update_product_content` (`MEDIUM`
+risk, mutates `name`/`description`/`extra_attributes` only - never
+`cost`/`vat_rate`/`ean`), is what the agent's proposal targets; `MEDIUM`
+rather than `HIGH` is the first builtin tool to show risk levels aren't
+just LOW-or-HIGH. `apps/worker` gained
+`generate_product_content_recommendation`, mirroring the pricing task
+exactly: idempotency-checked, proposes through Phase 8's
+`propose_recommendation` + `submit_for_approval`, never mutates
+anything itself.
+
+Fixed along the way: `apps/api/requirements-dev.txt` and
+`packages/policies/requirements-dev.txt` were missing
+`-e ../../packages/pricing` - a real gap from Phase 9 that a reused,
+already-built local venv had silently masked (pip only needs to resolve
+`cp_ai`'s declared `cp-pricing` dependency at *install* time, not import
+time, so nothing failed until a venv was rebuilt from scratch). Caught
+by rebuilding every touched package's venv from scratch this phase
+before calling it done - now standard practice here after Phase 6/9
+each surfaced their own version of "it worked locally because the venv
+was stale."
+
+Tested: `packages/ai`'s own 27 tests total (8 new: 3 for
+`AnthropicProvider` against `httpx.MockTransport`, 5 for the product
+agent's decision logic including the hallucination-override case, no DB
+needed for any of them), 3 new DB-integration tests in `apps/api` for
+`update_product_content` (the `MEDIUM`-risk approval gate, the handler's
+own logic, tenant isolation) bringing it to 60, and 4 new DB-integration
+tests in `apps/worker` for the Celery task (proposes, forces `UNKNOWN`
+end-to-end, never double-proposes, reports a missing product cleanly)
+bringing it to 12.

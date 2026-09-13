@@ -14,9 +14,12 @@ from cp_ai.tools import (
 from cp_ai.tools.builtin.product_tools import (
     GetProductArgs,
     UpdatePriceArgs,
+    UpdateProductContentArgs,
     get_product_tool,
     update_price_handler,
     update_price_tool,
+    update_product_content_handler,
+    update_product_content_tool,
 )
 from cp_domain.audit_event import ActorType, AuditEvent
 from cp_domain.offer import Offer
@@ -197,6 +200,89 @@ class TestUpdatePriceTool:
         assert price.amount == Decimal("100.00")
 
 
+class TestUpdateProductContentTool:
+    async def test_medium_risk_tool_never_runs_through_the_executor(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        await _make_product(db_session, tenant, "SKU-1", "Old name")
+        await db_session.commit()
+
+        registry = ToolRegistry()
+        registry.register(update_product_content_tool())
+        executor = ToolExecutor(registry, db_session)
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await executor.execute(
+            ToolCall(
+                name="update_product_content",
+                arguments={"sku": "SKU-1", "new_name": "New name"},
+            ),
+            context,
+        )
+
+        assert result.success is False
+        assert result.requires_approval is True
+
+        product = await db_session.scalar(select(Product).where(Product.sku == "SKU-1"))
+        assert product.name == "Old name"
+
+        event = await db_session.scalar(select(AuditEvent).where(AuditEvent.tenant_id == tenant.id))
+        assert event is None
+
+    async def test_handler_updates_name_description_and_extra_attributes(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        product = await _make_product(db_session, tenant, "SKU-1", "Old name")
+        product.description = "Old description"
+        await db_session.commit()
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await update_product_content_handler(
+            UpdateProductContentArgs(
+                sku="SKU-1",
+                new_name="New name",
+                new_description="New description",
+                new_extra_attributes={"specifications": {"ean": "UNKNOWN"}},
+            ),
+            context,
+            db_session,
+        )
+
+        assert result.success is True
+        assert result.before == {
+            "name": "Old name",
+            "description": "Old description",
+            "extra_attributes": None,
+        }
+        assert result.after == {
+            "name": "New name",
+            "description": "New description",
+            "extra_attributes": {"specifications": {"ean": "UNKNOWN"}},
+        }
+
+        reloaded = await db_session.scalar(select(Product).where(Product.sku == "SKU-1"))
+        assert reloaded.name == "New name"
+        assert reloaded.extra_attributes == {"specifications": {"ean": "UNKNOWN"}}
+
+    async def test_handler_rejects_product_outside_tenant(self, db_session: AsyncSession) -> None:
+        tenant_a = await make_tenant(db_session, "Tenant A")
+        tenant_b = await make_tenant(db_session, "Tenant B")
+        await _make_product(db_session, tenant_a, "SKU-1", "Old name")
+        await db_session.commit()
+        context_b = ToolContext(tenant_id=tenant_b.id, actor_type=ActorType.AI_AGENT)
+
+        result = await update_product_content_handler(
+            UpdateProductContentArgs(sku="SKU-1", new_name="Hijacked"), context_b, db_session
+        )
+
+        assert result.success is False
+
+        product = await db_session.scalar(select(Product).where(Product.sku == "SKU-1"))
+        assert product.name == "Old name"
+
+
 class _SetDescriptionArgs(BaseModel):
     sku: str
     new_description: str
@@ -278,3 +364,4 @@ class TestGetProductArgsRejectsTenantId:
     async def test_builtin_args_models_never_declare_tenant_id(self) -> None:
         assert "tenant_id" not in GetProductArgs.model_fields
         assert "tenant_id" not in UpdatePriceArgs.model_fields
+        assert "tenant_id" not in UpdateProductContentArgs.model_fields

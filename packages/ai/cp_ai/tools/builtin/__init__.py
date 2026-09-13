@@ -1,4 +1,8 @@
-from cp_ai.tools.builtin.product_tools import get_product_tool, update_price_tool
+from cp_ai.tools.builtin.product_tools import (
+    get_product_tool,
+    update_price_tool,
+    update_product_content_tool,
+)
 from cp_ai.tools.registry import ToolRegistry
 
 
@@ -7,6 +11,12 @@ def register_builtin_tools(registry: ToolRegistry) -> None:
     call this once when they build their `ToolRegistry`."""
     registry.register(get_product_tool())
     registry.register(update_price_tool())
+    registry.register(update_product_content_tool())
 
 
-__all__ = ["get_product_tool", "register_builtin_tools", "update_price_tool"]
+__all__ = [
+    "get_product_tool",
+    "register_builtin_tools",
+    "update_price_tool",
+    "update_product_content_tool",
+]

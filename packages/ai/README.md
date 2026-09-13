@@ -1,12 +1,10 @@
 # packages/ai (`cp_ai`)
 
 Phase 7's tool system - the only way an AI agent is ever allowed to
-touch anything - plus, starting Phase 9, the first actual agent built on
-top of it. Prompts and the `AIProvider` abstraction land later, whenever
-an agent first needs to actually call an LLM; this package's first job
-was existing at all, because CLAUDE.md requires every AI action to go
-through an explicitly defined, permissioned tool - never `execute_sql`,
-never an arbitrary HTTP request.
+touch anything - plus the agents built on top of it, starting with
+Phase 9's pricing agent (deterministic, no real LLM call) and Phase 10's
+product agent (the first to actually call one, through the `AIProvider`
+abstraction).
 
 ## `cp_ai.tools`
 
@@ -72,6 +70,41 @@ Two concrete tools proving the framework works end to end against real
   `ToolExecutor` never lets `update_price_handler` run without Phase 8's
   approval workflow, so calling it through the executor always comes
   back as `requires_approval` with the price untouched.
+- **`update_product_content`** (`MEDIUM` risk, mutates) - changes a
+  product's name, description, and free-form `extra_attributes` bag
+  (bullet points, specifications). `MEDIUM`, not `HIGH`: wrong listing
+  copy is a real but lesser mistake than a wrong price, and this is the
+  first builtin tool to show risk levels aren't just LOW-or-HIGH. Never
+  touches `cost`/`vat_rate`/`ean` - those are real manufacturer data, not
+  copy an agent gets to rewrite.
+
+## `cp_ai.providers`
+
+Phase 10's `AIProvider` abstraction (CLAUDE.md #17: replaceable, never a
+vendor SDK hardcoded into business logic):
+
+- **`AIProvider`** - one method, `generate_structured(*, system_prompt,
+  user_prompt, schema, schema_name) -> dict`. How a concrete provider
+  achieves structured/constrained output (tool-use, function calling,
+  `response_format`, ...) is its own concern; callers only see the
+  resulting dict, validated by them against their own Pydantic model.
+- **`AnthropicProvider`** - the first concrete provider, using
+  Anthropic's tool-use mechanism: `schema` becomes a single tool's
+  `input_schema` with `tool_choice` forcing exactly that tool, so the
+  model's only possible response is a call to it, never free-form text
+  to parse. Tested via `httpx.MockTransport` against `anthropic==0.39.0`
+  (pinned to a version built on plain `httpx`, not a newer major version
+  the SDK has since moved to a different HTTP stack for - no real API
+  key or network call needed in tests, same reasoning as the
+  WooCommerce/Allegro connectors).
+- **`FakeAIProvider`** - the `MockConnector` of this package: returns a
+  canned response regardless of the prompt and records every call, for
+  testing an agent's own decision logic without a real provider. Lets a
+  test hand it a deliberately adversarial/hallucinated response to prove
+  an agent enforces CLAUDE.md #9 in code, not merely by asking nicely -
+  see the product agent below.
+
+## `cp_ai.agents.pricing_agent`
 
 ## `cp_ai.agents.pricing_agent`
 
@@ -96,9 +129,40 @@ gets a proposal back, hands it to `cp_policies.propose_recommendation` +
 `submit_for_approval` - closing the loop from deterministic math all the
 way to a human's approval queue.
 
-Run this package's own tests (registry + executor mechanics using a
-mocked `AsyncSession`, and the pricing agent's own decision logic - no
-DB needed for either):
+## `cp_ai.agents.product_agent`
+
+Phase 10's product agent: `build_product_content_proposal(*, provider,
+product, ...)` generates a title/description/bullet points via
+`AIProvider.generate_structured` and, only for specification fields the
+product actually has source data for (`ean`, `weight_kg`,
+`dimensions_cm`, plus anything already in `extra_attributes`), lets the
+model's value through. For every other spec field, the literal string
+`"UNKNOWN"` is written into the result **in this function, after the
+call returns** - overwriting whatever the model said, even if it
+returned a plausible-looking value.
+
+That overwrite is the load-bearing part. `product.description` is fed
+into the prompt as context, and it's untrusted external content per
+CLAUDE.md #18 - potentially synced from a marketplace listing an
+attacker controls, and possibly containing text trying to steer the
+model into inventing a spec value it has no basis for. The system prompt
+asks the model not to; this function does not trust that it complied.
+`packages/ai/tests/test_product_agent.py` proves this directly: a
+`FakeAIProvider` is handed a response that *does* invent a value for an
+unknown field (simulating a model that either hallucinated or was
+successfully steered), and the assertion is that the final proposal
+still shows `"UNKNOWN"` there - the guarantee holds structurally, not
+because the fake happened to behave.
+
+`apps/worker`'s `generate_product_content_recommendation` Celery task
+runs this against a real `Product` (via `AnthropicProvider` in
+production) and, like the pricing agent, hands the result to
+`cp_policies.propose_recommendation` + `submit_for_approval`.
+
+Run this package's own tests (registry + executor mechanics and both
+agents' decision logic against a mocked `AsyncSession`/`FakeAIProvider`,
+plus the `AnthropicProvider` against `httpx.MockTransport` - no real DB,
+API key, or network call needed for any of it):
 
 ```bash
 cd packages/ai
@@ -107,7 +171,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-DB-integration coverage (tenant isolation, the approval gate leaving the
-price untouched, and a real `AuditEvent` row for a low-risk mutation)
-lives in `apps/api/tests/test_ai_tools.py`, reusing that app's Postgres
-test fixtures - same reasoning as `packages/sync`.
+DB-integration coverage (tenant isolation, both tools' approval gates
+leaving their entities untouched, and real `AuditEvent` rows) lives in
+`apps/api/tests/test_ai_tools.py`, reusing that app's Postgres test
+fixtures - same reasoning as `packages/sync`.

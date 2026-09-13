@@ -102,3 +102,64 @@ def update_price_tool() -> ToolSchema:
         permission=ToolPermission(risk_level=ToolRiskLevel.HIGH, mutates=True),
         handler=update_price_handler,
     )
+
+
+class UpdateProductContentArgs(BaseModel):
+    sku: str
+    new_name: str | None = None
+    new_description: str | None = None
+    new_extra_attributes: dict | None = None
+
+
+async def update_product_content_handler(
+    args: UpdateProductContentArgs, context: ToolContext, db: AsyncSession
+) -> ToolResult:
+    """Updates a product's listing content: name, description, and the
+    free-form `extra_attributes` bag (bullet points, specifications,
+    ...). Never touches `cost`/`vat_rate`/`ean`/etc - those are real
+    manufacturer data (CLAUDE.md #9), not listing copy an agent gets to
+    rewrite."""
+    product = await db.scalar(
+        select(Product).where(Product.tenant_id == context.tenant_id, Product.sku == args.sku)
+    )
+    if product is None:
+        return ToolResult.fail(f"No product with sku {args.sku!r}")
+
+    before = {
+        "name": product.name,
+        "description": product.description,
+        "extra_attributes": product.extra_attributes,
+    }
+
+    if args.new_name is not None:
+        product.name = args.new_name
+    if args.new_description is not None:
+        product.description = args.new_description
+    if args.new_extra_attributes is not None:
+        product.extra_attributes = args.new_extra_attributes
+
+    after = {
+        "name": product.name,
+        "description": product.description,
+        "extra_attributes": product.extra_attributes,
+    }
+
+    return ToolResult.ok(
+        after, entity_type="product", entity_id=product.id, before=before, after=after
+    )
+
+
+def update_product_content_tool() -> ToolSchema:
+    """Changes a product's listing content (name/description/extra
+    attributes). MEDIUM risk, mutates - a wrong price is a financial
+    mistake (HIGH); wrong listing copy is a quality/brand mistake, real
+    but a notch less severe, so `ToolExecutor` still requires approval
+    but this is the first builtin tool to show risk levels aren't just
+    LOW or HIGH."""
+    return ToolSchema(
+        name="update_product_content",
+        description="Update a product's name, description, and extra attributes.",
+        args_model=UpdateProductContentArgs,
+        permission=ToolPermission(risk_level=ToolRiskLevel.MEDIUM, mutates=True),
+        handler=update_product_content_handler,
+    )

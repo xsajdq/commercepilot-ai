@@ -79,6 +79,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://commercepilot:commercepilot@postgres:5432/commercepilot}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,6 +99,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://commercepilot:commercepilot@postgres:5432/commercepilot}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
     depends_on:
       postgres:
         condition: service_healthy
