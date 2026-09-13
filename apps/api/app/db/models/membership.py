@@ -1,12 +1,11 @@
 import enum
 import uuid
 
+from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import Enum, ForeignKey, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.schema import UniqueConstraint
 
-from app.db.base import Base
-from app.db.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.models.tenant import Tenant
 from app.db.models.user import User
 

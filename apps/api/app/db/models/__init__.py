@@ -1,3 +1,5 @@
+import cp_domain  # noqa: F401  (registers the e-commerce domain tables too)
+
 from app.db.models.membership import Membership, MembershipRole
 from app.db.models.refresh_token import RefreshToken
 from app.db.models.tenant import Tenant

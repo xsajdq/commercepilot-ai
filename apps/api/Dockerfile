@@ -15,6 +15,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY apps/api/requirements.txt apps/api/requirements.txt
+# requirements.txt's `-e ../../packages/...` lines are resolved relative
+# to the requirements file itself, so packages/ must already exist at
+# this same relative position before pip install runs.
+COPY packages/shared packages/shared
+COPY packages/domain packages/domain
 RUN pip install -r apps/api/requirements.txt
 
 COPY apps/api/app apps/api/app

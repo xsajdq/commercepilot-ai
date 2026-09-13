@@ -1,8 +1,6 @@
+from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.base import Base
-from app.db.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):

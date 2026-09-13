@@ -1,11 +1,9 @@
 import uuid
 from datetime import datetime
 
+from cp_shared.db import Base, UUIDPrimaryKeyMixin
 from sqlalchemy import DateTime, ForeignKey, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.db.base import Base
-from app.db.mixins import UUIDPrimaryKeyMixin
 
 
 class RefreshToken(UUIDPrimaryKeyMixin, Base):

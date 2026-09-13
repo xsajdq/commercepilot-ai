@@ -9,7 +9,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 1 — Authentication + multi-tenancy**: users, tenants,
       memberships, roles, sessions, JWT + refresh tokens, tenant
       middleware. Gate: a user in Tenant A cannot access Tenant B's data.
-- [ ] **Phase 2 — Domain model**: Product, Variant, Brand, Category, Offer,
+- [x] **Phase 2 — Domain model**: Product, Variant, Brand, Category, Offer,
       Price, Stock, Order, Review, Connection, Recommendation, Approval,
       AuditEvent, AIJob. Alembic migrations.
 - [ ] **Phase 3 — Connector framework**: `CommerceConnector` interface +
@@ -74,5 +74,30 @@ logout → login → dashboard → cleared-session redirect). Session tokens
 live in `localStorage` for now, which is a pragmatic MVP choice, not a
 hardened one - moving to httpOnly cookies is Phase 21 work, not Phase 1.
 
-No product/order domain model or connectors exist yet — that starts at
-Phase 2.
+Phase 2 complete: the e-commerce domain model lives in `packages/domain`
+(`cp_domain`) - `Brand`, `Category`, `Product`, `Variant`, `Connection`,
+`Offer`, `Price`, `Stock`, `Order`/`OrderItem`, `Review`,
+`Recommendation`, `Approval`, `AuditEvent`, `AIJob` - built on a new
+`packages/shared` (`cp_shared`) that holds the single SQLAlchemy `Base`
+and mixins (`UUIDPrimaryKeyMixin`, `TimestampMixin`, `TenantScopedMixin`)
+both it and `apps/api`'s own auth tables register on. Both are installed
+as editable local packages (`pip install -e packages/shared -e
+packages/domain` - see `apps/api/requirements.txt`); this keeps
+`packages/connectors` (Phase 3+) able to depend on the domain model
+without depending on `apps/api`, per CLAUDE.md's layering.
+
+Design notes: `Offer` is a `Variant` listed on one `Connection`
+(store/marketplace account) - `Price`/`Stock` hang off the offer (one row
+each, current value only; history lives in `AuditEvent`, written starting
+Phase 8). `Connection.encrypted_credentials` is Fernet-encrypted
+(`app/core/crypto.py`, a dedicated `ENCRYPTION_KEY` separate from
+`SECRET_KEY`) - never plaintext, per CLAUDE.md. Missing manufacturer data
+(`ean`, `cost`, `vat_rate`, ...) is nullable/`NULL`, never guessed.
+Migration verified upgrade → downgrade → upgrade against real Postgres
+(20 tables total with Phase 1's auth tables); 10 new ORM-level tests in
+`apps/api/tests/test_domain_models.py` cover cascades, uniqueness
+constraints (including that SKUs are unique per-tenant, not globally -
+the domain-model equivalent of the tenant-isolation gate), and a check
+constraint, plus 3 in `test_crypto.py` for the encryption round-trip.
+
+No connectors or AI agents exist yet — that starts at Phase 3.

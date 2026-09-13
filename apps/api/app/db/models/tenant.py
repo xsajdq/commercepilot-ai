@@ -1,8 +1,6 @@
+from cp_shared.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.base import Base
-from app.db.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):

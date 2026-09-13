@@ -10,4 +10,10 @@ redis==5.2.1
 httpx==0.28.1
 python-jose[cryptography]==3.3.0
 bcrypt==5.0.0
+cryptography==44.0.0
 sentry-sdk[fastapi]==2.19.2
+
+# Local packages (see packages/shared, packages/domain) - install order
+# matters: cp_domain depends on cp_shared.
+-e ../../packages/shared
+-e ../../packages/domain

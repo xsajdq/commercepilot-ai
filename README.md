@@ -8,29 +8,37 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 1**
-(authentication + multi-tenancy): registration, login, tenant-scoped
-JWT sessions, and role-based membership are live. No product/order domain
-model or connectors exist yet.
+what's next. This repo is currently at the end of **Phase 2** (domain
+model): registration, login, tenant-scoped JWT sessions, role-based
+membership, and the full e-commerce domain model (products, variants,
+offers, orders, recommendations, approvals, audit log, ...) are live. No
+connectors or AI agents exist yet.
 
 ## Repository layout
 
 ```
 apps/
-  api/        FastAPI backend
+  api/        FastAPI backend (owns the DB engine, auth, HTTP routes)
   web/        Next.js frontend
   worker/     Celery worker + beat scheduler
 packages/
-  domain/ connectors/ ai/ pricing/ policies/ shared/
+  shared/     cp_shared - the shared SQLAlchemy Base + mixins
+  domain/     cp_domain - the e-commerce domain model (products, orders, ...)
+  connectors/ ai/ pricing/ policies/   (empty scaffolds - Phase 3+)
 infrastructure/
   docker/ hetzner/ traefik/ backups/
-migrations/   Alembic migrations (users/tenants/memberships/refresh_tokens)
+migrations/   Alembic migrations (auth tables + domain model)
 alembic.ini   Run `alembic upgrade head` from the repo root
 tests/
   unit/ integration/ e2e/
 docs/
   architecture/ agents/ connectors/ api/ security/
 ```
+
+`packages/shared` and `packages/domain` are installed as editable local
+Python packages (see `apps/api/requirements.txt`) rather than living
+inside `apps/api`, so future connectors (Phase 3+) can depend on the
+domain model without depending on the FastAPI app itself.
 
 ## Local development
 
