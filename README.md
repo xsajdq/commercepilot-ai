@@ -8,11 +8,12 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 2** (domain
-model): registration, login, tenant-scoped JWT sessions, role-based
-membership, and the full e-commerce domain model (products, variants,
-offers, orders, recommendations, approvals, audit log, ...) are live. No
-connectors or AI agents exist yet.
+what's next. This repo is currently at the end of **Phase 3** (connector
+framework): registration, login, tenant-scoped JWT sessions, role-based
+membership, the full e-commerce domain model (products, variants,
+offers, orders, recommendations, approvals, audit log, ...), and the
+`CommerceConnector` interface + an in-memory mock connector are all
+live. No real connector (WooCommerce/Allegro) or AI agents exist yet.
 
 ## Repository layout
 
@@ -24,7 +25,8 @@ apps/
 packages/
   shared/     cp_shared - the shared SQLAlchemy Base + mixins
   domain/     cp_domain - the e-commerce domain model (products, orders, ...)
-  connectors/ ai/ pricing/ policies/   (empty scaffolds - Phase 3+)
+  connectors/ cp_connectors - CommerceConnector interface + MockConnector
+  ai/ pricing/ policies/   (empty scaffolds - Phase 4+)
 infrastructure/
   docker/ hetzner/ traefik/ backups/
 migrations/   Alembic migrations (auth tables + domain model)
@@ -37,8 +39,17 @@ docs/
 
 `packages/shared` and `packages/domain` are installed as editable local
 Python packages (see `apps/api/requirements.txt`) rather than living
-inside `apps/api`, so future connectors (Phase 3+) can depend on the
-domain model without depending on the FastAPI app itself.
+inside `apps/api`, so other packages can depend on the domain model
+without depending on the FastAPI app itself. `packages/connectors` is
+fully standalone (no dependency on the domain model or apps/api at all -
+see its own README) and tested on its own; run its tests with:
+
+```bash
+cd packages/connectors
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
+```
 
 ## Local development
 

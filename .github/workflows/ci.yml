@@ -59,7 +59,23 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ruff
-      - run: ruff check packages/shared packages/domain
+      - run: ruff check packages/shared packages/domain packages/connectors
+
+  connectors:
+    name: Connectors (test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/connectors
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: packages/connectors/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
 
   worker:
     name: Worker (import check)

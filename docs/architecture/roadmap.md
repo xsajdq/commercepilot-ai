@@ -12,7 +12,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 2 — Domain model**: Product, Variant, Brand, Category, Offer,
       Price, Stock, Order, Review, Connection, Recommendation, Approval,
       AuditEvent, AIJob. Alembic migrations.
-- [ ] **Phase 3 — Connector framework**: `CommerceConnector` interface +
+- [x] **Phase 3 — Connector framework**: `CommerceConnector` interface +
       mock connector, tested without any real store.
 - [ ] **Phase 4 — WooCommerce connector**.
 - [ ] **Phase 5 — Allegro connector**.
@@ -82,9 +82,9 @@ Phase 2 complete: the e-commerce domain model lives in `packages/domain`
 and mixins (`UUIDPrimaryKeyMixin`, `TimestampMixin`, `TenantScopedMixin`)
 both it and `apps/api`'s own auth tables register on. Both are installed
 as editable local packages (`pip install -e packages/shared -e
-packages/domain` - see `apps/api/requirements.txt`); this keeps
-`packages/connectors` (Phase 3+) able to depend on the domain model
-without depending on `apps/api`, per CLAUDE.md's layering.
+packages/domain` - see `apps/api/requirements.txt`); this keeps other
+packages able to depend on the domain model without depending on
+`apps/api`, per CLAUDE.md's layering.
 
 Design notes: `Offer` is a `Variant` listed on one `Connection`
 (store/marketplace account) - `Price`/`Stock` hang off the offer (one row
@@ -100,4 +100,20 @@ constraints (including that SKUs are unique per-tenant, not globally -
 the domain-model equivalent of the tenant-isolation gate), and a check
 constraint, plus 3 in `test_crypto.py` for the encryption round-trip.
 
-No connectors or AI agents exist yet — that starts at Phase 3.
+Phase 3 complete: `packages/connectors` (`cp_connectors`) has the
+`CommerceConnector` `Protocol` (`get_products`, `get_product`,
+`create_product`, `update_product`, `update_price`, `update_stock`,
+`get_categories`, `upload_image`) plus its own DTOs (`ConnectorProduct`,
+`ConnectorCategory`, `PriceUpdate`, `StockUpdate`, `UploadedImage`) and
+exception hierarchy. Deliberately has no dependency on `cp_domain` or
+`cp_shared` - a connector talks to an external API, not our database;
+the sync engine (Phase 6) will map between `ConnectorProduct` and
+`cp_domain.Product`/`Variant`. `MockConnector` is an in-memory fake
+implementing the interface (12 tests in
+`packages/connectors/tests/test_mock_connector.py`, run standalone with
+no DB/services needed) - proving the interface end to end before any
+real platform exists, per CLAUDE.md #16 (an agent must never know or
+care which platform, or even whether a real one, it's talking to).
+
+No real connector (WooCommerce/Allegro) or AI agents exist yet — that
+starts at Phase 4.
