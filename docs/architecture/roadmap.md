@@ -14,7 +14,7 @@ testable and merged before the next begins — never one giant change.
       AuditEvent, AIJob. Alembic migrations.
 - [x] **Phase 3 — Connector framework**: `CommerceConnector` interface +
       mock connector, tested without any real store.
-- [ ] **Phase 4 — WooCommerce connector**.
+- [x] **Phase 4 — WooCommerce connector**.
 - [ ] **Phase 5 — Allegro connector**.
 - [ ] **Phase 6 — Sync engine**: pagination, retries, rate limits, backoff,
       idempotency, partial failures.
@@ -115,5 +115,18 @@ no DB/services needed) - proving the interface end to end before any
 real platform exists, per CLAUDE.md #16 (an agent must never know or
 care which platform, or even whether a real one, it's talking to).
 
-No real connector (WooCommerce/Allegro) or AI agents exist yet — that
-starts at Phase 4.
+Phase 4 complete: `cp_connectors.WooCommerceConnector` implements
+`CommerceConnector` against WooCommerce's REST API v3
+(`/wp-json/wc/v3`), via `httpx.AsyncClient` with Consumer Key/Secret auth
+(HTTPS only - see the package README for what's deliberately
+out of scope: OAuth1.0a for plain HTTP, variable-product variations,
+multi-category products). Errors map to the Phase 3 exception hierarchy
+(401/403 → `ConnectorAuthError`, 404 → `ConnectorNotFoundError`, 429 →
+`ConnectorRateLimitError` with `Retry-After`, else `ConnectorError`) -
+retry/backoff orchestration is explicitly left to the Phase 6 sync
+engine, not built into the connector itself. Tested (11 new tests) with
+`FakeWooCommerceAPI`, an in-memory stand-in for the WooCommerce REST API
+driven through `httpx.MockTransport` - still no real store, no new
+HTTP-mocking dependency.
+
+No Allegro connector or AI agents exist yet — that starts at Phase 5.

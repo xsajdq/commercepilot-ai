@@ -13,6 +13,7 @@ from cp_connectors.types import (
     StockUpdate,
     UploadedImage,
 )
+from cp_connectors.woocommerce import WooCommerceConnector
 
 __all__ = [
     "CommerceConnector",
@@ -26,4 +27,5 @@ __all__ = [
     "PriceUpdate",
     "StockUpdate",
     "UploadedImage",
+    "WooCommerceConnector",
 ]

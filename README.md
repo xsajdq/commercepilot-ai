@@ -8,12 +8,13 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 3** (connector
-framework): registration, login, tenant-scoped JWT sessions, role-based
-membership, the full e-commerce domain model (products, variants,
-offers, orders, recommendations, approvals, audit log, ...), and the
-`CommerceConnector` interface + an in-memory mock connector are all
-live. No real connector (WooCommerce/Allegro) or AI agents exist yet.
+what's next. This repo is currently at the end of **Phase 4**
+(WooCommerce connector): registration, login, tenant-scoped JWT
+sessions, role-based membership, the full e-commerce domain model
+(products, variants, offers, orders, recommendations, approvals, audit
+log, ...), the `CommerceConnector` interface with an in-memory mock, and
+a real WooCommerce REST API v3 connector are all live. No Allegro
+connector, sync engine, or AI agents exist yet.
 
 ## Repository layout
 

@@ -19,9 +19,30 @@ whether there *is* a real platform - it's talking to.
 `MockConnector` is an in-memory fake implementing the full interface,
 used by this package's own tests (`tests/test_mock_connector.py`) and,
 later, by the sync engine and AI tool tests - exactly the "interface +
-mock connector, tested without any real store" Phase 3 calls for. The
-first real implementation is WooCommerce (Phase 4), then Allegro
-(Phase 5).
+mock connector, tested without any real store" Phase 3 calls for.
+
+`WooCommerceConnector` (Phase 4) is the first real implementation, against
+WooCommerce's REST API v3 (`/wp-json/wc/v3`). Notes on its scope:
+
+- Consumer Key/Secret auth over **HTTPS only** - WooCommerce requires
+  OAuth1.0a request signing for plain HTTP instead, which isn't
+  implemented here; connect stores over HTTPS.
+- Each `ConnectorProduct` maps to one WooCommerce *simple* product;
+  variable products (per-variation price/stock) aren't modeled yet.
+- A product's categories are simplified to just the first one WooCommerce
+  returns (`ConnectorProduct.category_external_id` is singular).
+- `upload_image` works by rewriting the product's `images` array with the
+  new URL appended - WooCommerce has no standalone upload-by-URL endpoint.
+- Retry/backoff/rate-limit handling is **not** done here on purpose -
+  errors are translated into typed exceptions
+  (`ConnectorAuthError`/`ConnectorNotFoundError`/`ConnectorRateLimitError`/
+  `ConnectorError`) and it's the sync engine's (Phase 6) job to decide how
+  to react to them.
+
+Tested against `tests/test_woocommerce_connector.py`'s `FakeWooCommerceAPI`
+- an in-memory stand-in for the WooCommerce REST API driven through
+  `httpx.MockTransport` - no real store, no new HTTP-mocking dependency.
+  Allegro (Phase 5) is next.
 
 Run its tests standalone (no DB, no other services needed):
 
