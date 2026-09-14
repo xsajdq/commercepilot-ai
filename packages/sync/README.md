@@ -57,8 +57,17 @@ function:
   clearing a previous error on a fully successful run.
 
 Only product-level fields are synced (sku, name, description, ean, price,
-stock) - category/brand resolution across platforms and real product
-variants aren't modeled yet.
+stock, offer status) - category/brand resolution across platforms and
+real product variants aren't modeled yet.
+
+Offer status: each connector reports status in its own platform's
+vocabulary (WooCommerce: `publish`/`draft`/`pending`/`private`; Allegro:
+`active`/`inactive`), mapped to `cp_domain.offer.OfferStatus` by
+`_STATUS_MAP` - an unrecognized string is left alone rather than guessed.
+This exists (Phase 11) because the listing agent's readiness check
+depends on `Offer.status` reflecting marketplace reality; before that, a
+synced offer's status was fetched from the connector and silently
+dropped, sitting at the column default forever.
 
 Tested via `apps/api/tests/test_sync_products.py` (DB-integration tests
 against a real Postgres, reusing apps/api's test fixtures) rather than

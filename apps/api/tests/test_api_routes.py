@@ -1,9 +1,11 @@
 import uuid
 
 import pytest
+from cp_domain.offer import Offer, OfferStatus
 from cp_domain.recommendation import RecommendationType, RiskLevel
 from cp_policies import propose_recommendation, submit_for_approval
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -234,6 +236,40 @@ class TestProductsRoutes:
         )
         assert result.status_code == 404
 
+    async def test_generate_listing_publish_recommendation_triggers_a_task(
+        self, client: AsyncClient
+    ) -> None:
+        token = await _register(client, ALICE)
+        connection_id = await self._connection(client, token)
+        create = await client.post(
+            "/products",
+            json={
+                "connection_id": connection_id,
+                "sku": "SKU-1",
+                "name": "Thing",
+                "price_amount": "10.00",
+            },
+            headers=_auth(token),
+        )
+        offer_id = create.json()["offers"][0]["id"]
+
+        result = await client.post(
+            f"/offers/{offer_id}/generate-listing-publish-recommendation", headers=_auth(token)
+        )
+
+        assert result.status_code == 200, result.text
+        assert result.json()["task_id"]
+
+    async def test_generate_listing_publish_recommendation_for_unknown_offer_404s(
+        self, client: AsyncClient
+    ) -> None:
+        token = await _register(client, ALICE)
+        result = await client.post(
+            "/offers/00000000-0000-0000-0000-000000000000/generate-listing-publish-recommendation",
+            headers=_auth(token),
+        )
+        assert result.status_code == 404
+
 
 class TestRecommendationsRoutes:
     async def _setup_product_and_recommendation(
@@ -377,3 +413,112 @@ class TestRecommendationsRoutes:
             f"/recommendations/{recommendation_id}/approve", json={}, headers=_auth(bob_token)
         )
         assert bob_approve.status_code == 404
+
+    async def _setup_listing_publish_recommendation(
+        self, client: AsyncClient, db_session: AsyncSession, token: str, tenant_id
+    ):
+        connection = await client.post(
+            "/connections",
+            json={"platform": "allegro", "name": "My Allegro", "credentials": {}},
+            headers=_auth(token),
+        )
+        connection_id = connection.json()["id"]
+        product = await client.post(
+            "/products",
+            json={
+                "connection_id": connection_id,
+                "sku": "SKU-1",
+                "name": "Thing",
+                "price_amount": "100.00",
+            },
+            headers=_auth(token),
+        )
+        offer_id = product.json()["offers"][0]["id"]
+
+        # /products creates a purely local offer (no marketplace presence
+        # yet) - a listing_publish recommendation only ever targets an
+        # offer that already exists as a draft on the marketplace, so
+        # give it the external_id a real sync would have set.
+        offer = await db_session.get(Offer, uuid.UUID(offer_id))
+        offer.external_id = "ext-1"
+        await db_session.commit()
+
+        recommendation = await propose_recommendation(
+            db_session,
+            tenant_id=uuid.UUID(tenant_id),
+            type=RecommendationType.LISTING_PUBLISH,
+            risk_level=RiskLevel.HIGH,
+            entity_type="offer",
+            entity_id=uuid.UUID(offer_id),
+            title="Publish SKU-1",
+            tool_name="request_listing_publish",
+            tool_arguments={"offer_id": offer_id},
+        )
+        await submit_for_approval(db_session, recommendation)
+        return recommendation.id, offer_id
+
+    async def test_approving_a_listing_publish_recommendation_enqueues_the_publish_task(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch
+    ) -> None:
+        sent_tasks = []
+
+        class _FakeAsyncResult:
+            id = "fake-task-id"
+
+        class _FakeCeleryClient:
+            def send_task(self, name, args):
+                sent_tasks.append((name, args))
+                return _FakeAsyncResult()
+
+        monkeypatch.setattr(
+            "app.api.routes.recommendations.get_celery_client", lambda: _FakeCeleryClient()
+        )
+
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = me.json()["tenant"]["id"]
+        recommendation_id, offer_id = await self._setup_listing_publish_recommendation(
+            client, db_session, token, tenant_id
+        )
+
+        result = await client.post(
+            f"/recommendations/{recommendation_id}/approve", json={}, headers=_auth(token)
+        )
+
+        assert result.status_code == 200, result.text
+        assert result.json()["status"] == "success"
+        assert sent_tasks == [("worker.publish_listing_to_marketplace", [tenant_id, offer_id])]
+
+        offer = await db_session.scalar(select(Offer).where(Offer.id == uuid.UUID(offer_id)))
+        assert offer.status is OfferStatus.PENDING
+
+    async def test_approving_a_price_change_does_not_enqueue_the_publish_task(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch
+    ) -> None:
+        sent_tasks = []
+
+        class _FakeAsyncResult:
+            id = "fake-task-id"
+
+        class _FakeCeleryClient:
+            def send_task(self, name, args):
+                sent_tasks.append((name, args))
+                return _FakeAsyncResult()
+
+        monkeypatch.setattr(
+            "app.api.routes.recommendations.get_celery_client", lambda: _FakeCeleryClient()
+        )
+
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = me.json()["tenant"]["id"]
+        recommendation_id, _offer_id = await self._setup_product_and_recommendation(
+            client, db_session, token, tenant_id
+        )
+
+        result = await client.post(
+            f"/recommendations/{recommendation_id}/approve", json={}, headers=_auth(token)
+        )
+
+        assert result.status_code == 200, result.text
+        assert sent_tasks == []

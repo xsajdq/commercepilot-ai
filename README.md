@@ -8,16 +8,18 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 10** (product
+what's next. This repo is currently at the end of **Phase 11** (listing
 agent): registration, login, tenant-scoped JWT sessions, role-based
 membership, the full e-commerce domain model, real WooCommerce + Allegro
 connectors, a sync engine, the AI tool system + approval engine
 (`Recommendation -> PendingApproval -> Approved/Rejected -> Executing ->
-Success/Failed`), a deterministic pricing engine, and two working agents
-(pricing, product content) are all live - plus a minimal web UI
-(connections, products, recommendations/approvals) wired to a real HTTP
-API on top of all of it, so the whole pipeline is clickable end to end,
-not just testable from the CLI.
+Success/Failed`), a deterministic pricing engine, and three working
+agents (pricing, product content, listing publication) are all live -
+plus a minimal web UI (connections, products, recommendations/approvals)
+wired to a real HTTP API on top of all of it, so the whole pipeline is
+clickable end to end, not just testable from the CLI. The listing agent
+is also the first AI-approved action that reaches a real marketplace (via
+a typed connector, CLAUDE.md #2) rather than only our own database.
 
 ## Repository layout
 

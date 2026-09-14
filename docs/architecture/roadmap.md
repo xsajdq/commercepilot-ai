@@ -26,7 +26,7 @@ testable and merged before the next begins — never one giant change.
       recommendation layer on top.
 - [x] **Phase 10 — Product agent**: structured content generation with
       `UNKNOWN` for missing specs.
-- [ ] **Phase 11 — Listing agent** (Allegro publication workflow).
+- [x] **Phase 11 — Listing agent** (Allegro publication workflow).
 - [ ] **Phase 12 — Catalog agent** (daily catalog health audit).
 - [ ] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
 - [ ] **Phase 14 — Competition agent** (manual competitors + API sources).
@@ -430,3 +430,71 @@ price actually change and a real `AuditEvent` land. 18 new DB-integration
 tests in `apps/api/tests/test_api_routes.py` cover the new routes
 directly (tenant isolation, 404s/409s, the full propose → approve/reject
 loop), bringing `apps/api` to 78.
+
+Phase 11 complete: the listing agent, and the first tool whose approval
+is meant to reach a real marketplace rather than only our own DB.
+
+`RecommendationType` gained `LISTING_PUBLISH` (a new Alembic migration,
+`ALTER TYPE ... ADD VALUE` with a recreate-the-enum downgrade - Postgres
+has no `DROP VALUE`). `cp_ai` gained a new builtin tool,
+`request_listing_publish` (HIGH risk, mutates `Offer.status`: `DRAFT` ->
+`PENDING`), and `cp_ai.agents.listing_agent.build_listing_publish_proposal`
+- a deterministic readiness gate, not an `AIProvider` call: "is this
+listing ready to go live" is a checklist (has a marketplace `external_id`
+already, is still `DRAFT`, has a name/description/price) rather than a
+creative judgement, so like the pricing agent (Phase 9) this one's whole
+"intelligence" is the checklist itself. Category-specific mandatory
+parameters (Allegro's per-category attributes) aren't checked - category/
+brand mapping across platforms still isn't modeled (`cp_sync`'s own
+README), a known simplification rather than a guess.
+
+The interesting design problem this phase actually had to solve:
+`cp_policies.approve()` runs a tool's handler synchronously, in-process,
+inside apps/api's `/recommendations/{id}/approve` HTTP handler - fine for
+every earlier tool (`update_price`, `update_product_content`), which only
+ever touch our own DB, but wrong for a tool whose whole point is a real
+network call to a marketplace (CLAUDE.md #11 - retry-safe; #12/#13 -
+never inline in an HTTP handler). So `request_listing_publish`'s handler
+stays DB-only (`DRAFT` -> `PENDING`) and the actual connector call is a
+new Celery task, `worker.publish_listing_to_marketplace` - enqueued not
+by the tool itself (no Celery dependency in `cp_ai`, on purpose) but by
+the approve route, which already knows a decision was just made and now
+also checks whether it was a `LISTING_PUBLISH` type before enqueueing.
+That task decrypts the connection's credentials, builds the real
+connector (`cp_sync.connector_factory`, same as sync), and calls
+`publish_offer` - the offer becomes `ACTIVE` on success. A `ConnectorError`
+(the platform explicitly rejected the request - bad auth, not found)
+marks the offer `ERROR` and writes a `FAILURE` `AuditEvent`; anything
+else (a network-level failure) is left to propagate so Celery's own
+retry/failure tracking handles it rather than permanently marking a
+possibly-still-retryable offer as broken - confirmed for real, not just
+in a test: running this against the actual `AllegroConnector` with fake
+credentials in this sandboxed environment hit an outbound-network proxy
+block (`httpx.ProxyError`, not a `ConnectorError`), and the offer
+correctly stayed `PENDING` rather than flipping to `ERROR`.
+
+Fixed along the way: `cp_sync.products._upsert_product` never actually
+set `Offer.status` from what a connector reported (`ConnectorProduct.status`
+was fetched but silently dropped) - every synced offer sat at the column
+default forever, which would have made the listing agent's `DRAFT` check
+meaningless against real data. `cp_sync` now maps each platform's own
+status vocabulary (WooCommerce: `publish`/`draft`/`pending`/`private`;
+Allegro: `active`/`inactive`) to `OfferStatus`, leaving anything
+unrecognized alone rather than guessing - this is exactly the kind of
+gap Phase 6's own docstring already flagged ("category/brand resolution
+... isn't modeled yet") but for status specifically, not category.
+
+Tested: `packages/ai` gained 6 tests for the listing agent's readiness
+checklist (bringing it to 33) and DB-integration coverage for the new
+tool in `apps/api/tests/test_ai_tools.py`; `apps/worker` gained 9 tests
+across both new tasks in `worker/tasks/listing.py` (proposes when ready,
+skips when not, idempotent on a repeat run; publishes and activates via
+`MockConnector`, marks `ERROR` on a `ConnectorError`, no-ops when the
+offer isn't `PENDING`), bringing it to 21; `apps/api` gained 4 tests for
+the new `/offers/{id}/generate-listing-publish-recommendation` route and
+the approve-route's type-conditional enqueue (verified by monkeypatching
+`get_celery_client`, and that a `PRICE_CHANGE` approval does *not*
+trigger it), bringing it to 92; and 5 new tests for the `cp_sync` status
+mapping fix in `apps/api/tests/test_sync_products.py`. Verified end to
+end against the real running stack exactly as described above, not just
+against `MockConnector` in pytest.

@@ -14,6 +14,7 @@ class RecommendationType(str, enum.Enum):
     CONTENT_UPDATE = "content_update"
     CATALOG_FIX = "catalog_fix"
     STOCK_ALERT = "stock_alert"
+    LISTING_PUBLISH = "listing_publish"
     OTHER = "other"
 
 

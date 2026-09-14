@@ -205,6 +205,16 @@ export function generatePricingRecommendation(
   });
 }
 
+export function generateListingPublishRecommendation(
+  token: string,
+  offerId: string,
+): Promise<TaskTriggeredResponse> {
+  return request(`/offers/${offerId}/generate-listing-publish-recommendation`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
 export function listRecommendations(
   token: string,
   status?: RecommendationStatus,

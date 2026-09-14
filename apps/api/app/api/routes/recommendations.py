@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_membership, get_current_user
+from app.core.celery_client import get_celery_client
 from app.db.base import get_db
 from app.db.models.membership import Membership
 from app.db.models.user import User
@@ -81,7 +82,7 @@ async def approve_endpoint(
     user: Annotated[User, Depends(get_current_user)],
 ) -> Recommendation:
     try:
-        return await approve_recommendation(
+        recommendation = await approve_recommendation(
             db,
             _registry,
             tenant_id=membership.tenant_id,
@@ -95,6 +96,22 @@ async def approve_endpoint(
         ) from exc
     except RecommendationNotPendingError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    # A listing_publish approval only ever gets our own Offer to PENDING
+    # (cp_ai's request_listing_publish tool is DB-only, see its own
+    # docstring for why) - the real marketplace call is a Celery task,
+    # never inline here (CLAUDE.md #12/#13), enqueued only now that a
+    # human has actually approved it.
+    if (
+        recommendation.type is RecommendationType.LISTING_PUBLISH
+        and recommendation.status is RecommendationStatus.SUCCESS
+    ):
+        get_celery_client().send_task(
+            "worker.publish_listing_to_marketplace",
+            args=[str(membership.tenant_id), str(recommendation.entity_id)],
+        )
+
+    return recommendation
 
 
 @router.post("/{recommendation_id}/reject", response_model=RecommendationOut)

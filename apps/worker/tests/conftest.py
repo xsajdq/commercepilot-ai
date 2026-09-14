@@ -14,7 +14,7 @@ os.environ.setdefault("ENCRYPTION_KEY", "PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9O
 
 import pytest  # noqa: E402
 from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus  # noqa: E402
-from cp_domain.offer import Offer  # noqa: E402
+from cp_domain.offer import Offer, OfferStatus  # noqa: E402
 from cp_domain.price import Price  # noqa: E402
 from cp_domain.product import Product  # noqa: E402
 from cp_domain.variant import Variant  # noqa: E402
@@ -123,20 +123,36 @@ def make_offer_with_price(
     *,
     sku: str = "SKU-1",
     cost: Decimal | None = Decimal("60"),
-    price_amount: Decimal = Decimal("100.00"),
+    price_amount: Decimal | None = Decimal("100.00"),
+    description: str | None = None,
+    external_id: str | None = None,
+    status: OfferStatus = OfferStatus.DRAFT,
 ) -> uuid.UUID:
     async def _create() -> uuid.UUID:
         async with async_session_factory() as db:
-            product = Product(tenant_id=tenant_id, sku=sku, name="Test product", cost=cost)
+            product = Product(
+                tenant_id=tenant_id,
+                sku=sku,
+                name="Test product",
+                description=description,
+                cost=cost,
+            )
             db.add(product)
             await db.flush()
             variant = Variant(tenant_id=tenant_id, product_id=product.id, sku=sku)
             db.add(variant)
             await db.flush()
-            offer = Offer(tenant_id=tenant_id, connection_id=connection_id, variant_id=variant.id)
+            offer = Offer(
+                tenant_id=tenant_id,
+                connection_id=connection_id,
+                variant_id=variant.id,
+                external_id=external_id,
+                status=status,
+            )
             db.add(offer)
             await db.flush()
-            db.add(Price(tenant_id=tenant_id, offer_id=offer.id, amount=price_amount))
+            if price_amount is not None:
+                db.add(Price(tenant_id=tenant_id, offer_id=offer.id, amount=price_amount))
             await db.commit()
             return offer.id
 

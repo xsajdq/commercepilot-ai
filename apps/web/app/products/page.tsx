@@ -6,6 +6,7 @@ import {
   ApiError,
   createProduct,
   generateContentRecommendation,
+  generateListingPublishRecommendation,
   generatePricingRecommendation,
   listConnections,
   listProducts,
@@ -108,6 +109,24 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleGenerateListingPublish(offerId: string) {
+    const token = getAccessToken();
+    if (!token) return;
+    setActionMessages((prev) => ({ ...prev, [offerId]: "Queuing…" }));
+    try {
+      const result = await generateListingPublishRecommendation(token, offerId);
+      setActionMessages((prev) => ({
+        ...prev,
+        [offerId]: `Publish check queued (task ${result.task_id.slice(0, 8)}…) - see Recommendations. Only proposes once the offer already exists as a marketplace draft (has an external_id, e.g. from a sync).`,
+      }));
+    } catch (err) {
+      setActionMessages((prev) => ({
+        ...prev,
+        [offerId]: err instanceof ApiError ? err.message : "Failed to queue",
+      }));
+    }
+  }
+
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
@@ -169,6 +188,14 @@ export default function ProductsPage() {
                               className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                             >
                               Generate pricing
+                            </button>
+                          )}
+                          {offer && offer.status === "draft" && (
+                            <button
+                              onClick={() => handleGenerateListingPublish(offer.id)}
+                              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              Publish listing
                             </button>
                           )}
                         </div>

@@ -34,7 +34,7 @@ code carrying the meaning:
 - `409` - a state conflict (duplicate SKU/connection name, or a decision
   attempted on a recommendation that isn't pending)
 
-## Resources (Phase 6-10; auth is Phase 1)
+## Resources (Phase 6-11; auth is Phase 1)
 
 - `/connections` - stores/marketplaces this tenant syncs from.
   `POST /connections/{id}/sync` enqueues `worker.sync_connection` and
@@ -42,20 +42,29 @@ code carrying the meaning:
   the Celery worker, never inline in the request (CLAUDE.md #12/#13).
 - `/products` - products and their offers. `POST /products` creates one
   manually (for testing without a live store); normally products arrive
-  via a connection sync. `POST /products/{id}/generate-content-recommendation`
-  and `POST /offers/{id}/generate-pricing-recommendation` enqueue the
-  product/pricing agents (`worker.generate_product_content_recommendation`
-  / `worker.generate_price_recommendation`) - both only ever *propose* a
-  change into `/recommendations`, never mutate anything directly.
+  via a connection sync. `POST /products/{id}/generate-content-recommendation`,
+  `POST /offers/{id}/generate-pricing-recommendation`, and
+  `POST /offers/{id}/generate-listing-publish-recommendation` enqueue the
+  product/pricing/listing agents (`worker.generate_product_content_recommendation`
+  / `worker.generate_price_recommendation` /
+  `worker.generate_listing_publish_recommendation`) - all three only ever
+  *propose* a change into `/recommendations`, never mutate anything
+  directly.
 - `/recommendations` - everything an agent has proposed
   (`?status=pending_approval` etc. to filter). `POST .../approve` and
   `POST .../reject` are the only way a proposed change actually takes
   effect: approving resolves and runs the underlying tool call
-  synchronously (a local DB write, not a slow external call, so this one
-  case is fine to do inline - CLAUDE.md #13 is about long-running jobs,
-  not every write) and writes a real `AuditEvent`; rejecting does
-  nothing. Both are tenant-scoped and idempotent in effect - deciding an
-  already-decided recommendation is a `409`, not a silent no-op.
+  synchronously (a local DB write, not a slow external call for most
+  tools, so this is fine to do inline - CLAUDE.md #13 is about
+  long-running jobs, not every write) and writes a real `AuditEvent`;
+  rejecting does nothing. Both are tenant-scoped and idempotent in
+  effect - deciding an already-decided recommendation is a `409`, not a
+  silent no-op. The one exception: approving a `listing_publish`
+  recommendation only moves our own `Offer` to `pending` inline - the
+  approve route then separately enqueues `worker.publish_listing_to_marketplace`,
+  since *that* tool's whole point is a real network call to a
+  marketplace, which does need to happen in the Celery worker, not the
+  request handler.
 
 No pagination yet - list endpoints cap at a fixed limit (200). Real
 pagination is tracked as hardening work, not needed while there's no

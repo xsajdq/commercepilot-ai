@@ -53,8 +53,9 @@ AI -> Tool -> Validation -> [Policy] -> Risk -> Approval
 
 ## `cp_ai.tools.builtin`
 
-Two concrete tools proving the framework works end to end against real
-`cp_domain` data (`register_builtin_tools(registry)` registers both):
+Concrete tools proving the framework works end to end against real
+`cp_domain` data (`register_builtin_tools(registry)` registers all of
+them):
 
 - **`get_product`** (`LOW` risk, read-only) - looks up one of the
   caller's products by SKU. Runs immediately, never audited (it's not a
@@ -77,6 +78,17 @@ Two concrete tools proving the framework works end to end against real
   first builtin tool to show risk levels aren't just LOW-or-HIGH. Never
   touches `cost`/`vat_rate`/`ean` - those are real manufacturer data, not
   copy an agent gets to rewrite.
+- **`request_listing_publish`** (`HIGH` risk, mutates) - Phase 11's
+  tool, and the first one whose approval is meant to reach a real
+  marketplace. Its own handler still only touches our own DB
+  (`Offer.status`: `DRAFT` -> `PENDING`) - deliberately, since
+  `cp_policies.approve()` calls a tool's handler synchronously inside an
+  HTTP request handler, and a real network call there would violate
+  CLAUDE.md #12/#13. The actual `publish_offer` connector call happens
+  in `apps/worker`'s `publish_listing_to_marketplace` Celery task,
+  enqueued by apps/api's approve route only after this tool's handler
+  has already succeeded - see the roadmap's Phase 11 writeup for the
+  full reasoning.
 
 ## `cp_ai.providers`
 
@@ -158,6 +170,29 @@ because the fake happened to behave.
 runs this against a real `Product` (via `AnthropicProvider` in
 production) and, like the pricing agent, hands the result to
 `cp_policies.propose_recommendation` + `submit_for_approval`.
+
+## `cp_ai.agents.listing_agent`
+
+Phase 11's listing agent: `build_listing_publish_proposal(*, offer,
+product, price)` decides whether a draft marketplace listing is ready to
+go live - like the pricing agent, no `AIProvider` call happens here,
+since "is this ready" is a checklist against data already on hand, not a
+creative judgement. Returns `None` unless all of: the offer already
+exists on the marketplace (`external_id` set - creating it there in the
+first place is a sync/push concern, not this agent's), it's still
+`DRAFT`, the product has a real name and description (the product
+agent's job, Phase 10), and it has been priced. Otherwise returns a
+`ListingPublishProposal` carrying the exact `request_listing_publish`
+tool call, with `risk_level` read off that tool's own permission the
+same way the pricing agent does for `update_price`.
+
+`apps/worker`'s `generate_listing_publish_recommendation` Celery task
+runs this against a real `Offer`/`Product`/`Price` and hands a proposal
+to `cp_policies.propose_recommendation` + `submit_for_approval`, exactly
+like the other two agents. What's different about this one is what
+happens *after* approval - see `request_listing_publish` above and the
+roadmap's Phase 11 writeup: this is the first agent whose approved
+action is meant to reach a real marketplace, not just our own DB.
 
 Run this package's own tests (registry + executor mechanics and both
 agents' decision logic against a mocked `AsyncSession`/`FakeAIProvider`,

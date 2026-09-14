@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from cp_connectors.base import CommerceConnector
 from cp_connectors.types import ConnectorProduct
 from cp_domain.connection import Connection
-from cp_domain.offer import Offer
+from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
 from cp_domain.product import Product
 from cp_domain.stock import Stock
@@ -14,6 +14,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cp_sync.retry import retry_with_backoff
+
+# Each connector reports status in its own platform's vocabulary (see
+# each connector's own tests - WooCommerce: "publish"/"draft"/"pending"/
+# "private"; Allegro: "active"/"inactive"; MockConnector/anything else:
+# already "draft"/"active"/... per ConnectorProduct's own default).
+# Mapping platform vocabulary to our domain's OfferStatus is exactly this
+# module's job (it already maps sku/name/price/stock the same way) - an
+# unrecognized string is left alone rather than guessed, so a newly
+# supported platform's own status wording never gets silently misread.
+_STATUS_MAP: dict[str, OfferStatus] = {
+    "draft": OfferStatus.DRAFT,
+    "pending": OfferStatus.PENDING,
+    "active": OfferStatus.ACTIVE,
+    "publish": OfferStatus.ACTIVE,
+    "private": OfferStatus.PAUSED,
+    "paused": OfferStatus.PAUSED,
+    "inactive": OfferStatus.DRAFT,
+    "error": OfferStatus.ERROR,
+}
+
+
+def _mapped_offer_status(raw_status: str) -> OfferStatus | None:
+    return _STATUS_MAP.get(raw_status.lower())
 
 
 @dataclass
@@ -67,10 +90,11 @@ async def sync_products(
     committed.
 
     Only product-level fields are synced (sku, name, description, ean,
-    price, stock) - category/brand resolution across platforms isn't
-    modeled yet (see the package README for why) and variants are
-    1:1 with products until a connector actually exposes real
-    variations (WooCommerce/Allegro don't yet, see their docstrings).
+    price, stock, offer status) - category/brand resolution across
+    platforms isn't modeled yet (see the package README for why) and
+    variants are 1:1 with products until a connector actually exposes
+    real variations (WooCommerce/Allegro don't yet, see their
+    docstrings).
     """
     result = SyncResult()
     cursor: str | None = None
@@ -140,17 +164,21 @@ async def _upsert_product(
     offer = await db.scalar(
         select(Offer).where(Offer.connection_id == connection.id, Offer.variant_id == variant.id)
     )
+    mapped_status = _mapped_offer_status(product.status)
     if offer is None:
         offer = Offer(
             tenant_id=tenant_id,
             connection_id=connection.id,
             variant_id=variant.id,
             external_id=product.external_id,
+            status=mapped_status or OfferStatus.DRAFT,
         )
         db.add(offer)
         await db.flush()
     else:
         offer.external_id = product.external_id
+        if mapped_status is not None:
+            offer.status = mapped_status
 
     if product.price is not None:
         price = await db.scalar(select(Price).where(Price.offer_id == offer.id))

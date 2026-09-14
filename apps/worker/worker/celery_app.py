@@ -13,6 +13,7 @@ app = Celery(
         "worker.tasks.sync",
         "worker.tasks.pricing",
         "worker.tasks.product_content",
+        "worker.tasks.listing",
     ],
 )
 

@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from cp_domain.offer import Offer
+from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
 from cp_domain.product import Product
 from pydantic import BaseModel, Field
@@ -162,4 +162,62 @@ def update_product_content_tool() -> ToolSchema:
         args_model=UpdateProductContentArgs,
         permission=ToolPermission(risk_level=ToolRiskLevel.MEDIUM, mutates=True),
         handler=update_product_content_handler,
+    )
+
+
+class RequestListingPublishArgs(BaseModel):
+    offer_id: uuid.UUID
+
+
+async def request_listing_publish_handler(
+    args: RequestListingPublishArgs, context: ToolContext, db: AsyncSession
+) -> ToolResult:
+    """Marks a draft listing as approved to go live - `DRAFT` ->
+    `PENDING` - but never talks to the marketplace itself.
+
+    This is the first tool whose approval is meant to result in a real
+    external mutation (CLAUDE.md #2), and that's exactly why its handler
+    stays DB-only: `cp_policies.approve()` calls a tool's handler
+    synchronously, in-process, which for every earlier tool (own-DB
+    writes only) was fine, but a real network call to a marketplace
+    needs retry-safety (CLAUDE.md #11) and must never run inline in an
+    HTTP request handler (CLAUDE.md #12/#13) - which is exactly where a
+    human clicking "approve" lands. So this handler only flips our own
+    state to PENDING; the caller (apps/api's approve route, seeing this
+    was a listing_publish recommendation) enqueues the actual
+    `worker.publish_listing_to_marketplace` Celery task, which is the
+    one that calls the real connector.
+    """
+    offer = await db.scalar(
+        select(Offer).where(Offer.tenant_id == context.tenant_id, Offer.id == args.offer_id)
+    )
+    if offer is None:
+        return ToolResult.fail(f"No offer {args.offer_id} for this tenant")
+    if offer.external_id is None:
+        return ToolResult.fail(f"Offer {args.offer_id} has no external_id yet - nothing to publish")
+    if offer.status is not OfferStatus.DRAFT:
+        return ToolResult.fail(
+            f"Offer {args.offer_id} is {offer.status.value}, not draft - nothing to publish"
+        )
+
+    before = {"status": offer.status.value}
+    offer.status = OfferStatus.PENDING
+    after = {"status": offer.status.value}
+
+    return ToolResult.ok(after, entity_type="offer", entity_id=offer.id, before=before, after=after)
+
+
+def request_listing_publish_tool() -> ToolSchema:
+    """Approves a draft listing to be published to its marketplace.
+    HIGH risk, mutates - same approval gate as `update_price`, but this
+    one's approval is the trigger for a real external mutation once the
+    worker picks up the PENDING state it leaves behind (see the
+    handler's own docstring for why the actual connector call doesn't
+    happen here)."""
+    return ToolSchema(
+        name="request_listing_publish",
+        description="Approve a draft marketplace listing to be published live.",
+        args_model=RequestListingPublishArgs,
+        permission=ToolPermission(risk_level=ToolRiskLevel.HIGH, mutates=True),
+        handler=request_listing_publish_handler,
     )

@@ -13,16 +13,19 @@ from cp_ai.tools import (
 )
 from cp_ai.tools.builtin.product_tools import (
     GetProductArgs,
+    RequestListingPublishArgs,
     UpdatePriceArgs,
     UpdateProductContentArgs,
     get_product_tool,
+    request_listing_publish_handler,
+    request_listing_publish_tool,
     update_price_handler,
     update_price_tool,
     update_product_content_handler,
     update_product_content_tool,
 )
 from cp_domain.audit_event import ActorType, AuditEvent
-from cp_domain.offer import Offer
+from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
 from cp_domain.product import Product
 from cp_domain.variant import Variant
@@ -53,6 +56,25 @@ async def _make_offer_with_price(
     db.add(offer)
     await db.flush()
     db.add(Price(tenant_id=tenant.id, offer_id=offer.id, amount=amount))
+    await db.commit()
+    return offer
+
+
+async def _make_draft_offer_with_external_id(
+    db: AsyncSession, tenant, connection, sku: str, external_id: str = "ext-1"
+) -> Offer:
+    product = await _make_product(db, tenant, sku, "Draft listing")
+    variant = Variant(tenant_id=tenant.id, product_id=product.id, sku=sku)
+    db.add(variant)
+    await db.flush()
+    offer = Offer(
+        tenant_id=tenant.id,
+        connection_id=connection.id,
+        variant_id=variant.id,
+        external_id=external_id,
+        status=OfferStatus.DRAFT,
+    )
+    db.add(offer)
     await db.commit()
     return offer
 
@@ -360,8 +382,107 @@ class TestAuditLogForLowRiskMutation:
         assert event.ai_model == "claude-sonnet-5"
 
 
+class TestRequestListingPublishTool:
+    async def test_high_risk_tool_never_runs_through_the_executor(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        offer = await _make_draft_offer_with_external_id(db_session, tenant, connection, "SKU-1")
+
+        registry = ToolRegistry()
+        registry.register(request_listing_publish_tool())
+        executor = ToolExecutor(registry, db_session)
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await executor.execute(
+            ToolCall(name="request_listing_publish", arguments={"offer_id": str(offer.id)}),
+            context,
+        )
+
+        assert result.success is False
+        assert result.requires_approval is True
+
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.DRAFT
+
+        event = await db_session.scalar(select(AuditEvent).where(AuditEvent.tenant_id == tenant.id))
+        assert event is None
+
+    async def test_handler_moves_a_draft_offer_to_pending(self, db_session: AsyncSession) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        offer = await _make_draft_offer_with_external_id(db_session, tenant, connection, "SKU-1")
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await request_listing_publish_handler(
+            RequestListingPublishArgs(offer_id=offer.id), context, db_session
+        )
+
+        assert result.success is True
+        assert result.before == {"status": "draft"}
+        assert result.after == {"status": "pending"}
+
+        reloaded = await db_session.scalar(select(Offer).where(Offer.id == offer.id))
+        assert reloaded.status is OfferStatus.PENDING
+
+    async def test_handler_rejects_an_offer_with_no_external_id(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        offer = await _make_offer_with_price(
+            db_session, tenant, connection, "SKU-1", Decimal("10.00")
+        )
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await request_listing_publish_handler(
+            RequestListingPublishArgs(offer_id=offer.id), context, db_session
+        )
+
+        assert result.success is False
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.DRAFT
+
+    async def test_handler_rejects_an_offer_that_is_not_draft(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        offer = await _make_draft_offer_with_external_id(db_session, tenant, connection, "SKU-1")
+        offer.status = OfferStatus.ACTIVE
+        await db_session.commit()
+        context = ToolContext(tenant_id=tenant.id, actor_type=ActorType.AI_AGENT)
+
+        result = await request_listing_publish_handler(
+            RequestListingPublishArgs(offer_id=offer.id), context, db_session
+        )
+
+        assert result.success is False
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.ACTIVE
+
+    async def test_handler_rejects_offer_outside_tenant(self, db_session: AsyncSession) -> None:
+        tenant_a = await make_tenant(db_session, "Tenant A")
+        tenant_b = await make_tenant(db_session, "Tenant B")
+        connection_a = await make_connection(db_session, tenant_a)
+        offer = await _make_draft_offer_with_external_id(
+            db_session, tenant_a, connection_a, "SKU-1"
+        )
+        context_b = ToolContext(tenant_id=tenant_b.id, actor_type=ActorType.AI_AGENT)
+
+        result = await request_listing_publish_handler(
+            RequestListingPublishArgs(offer_id=offer.id), context_b, db_session
+        )
+
+        assert result.success is False
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.DRAFT
+
+
 class TestGetProductArgsRejectsTenantId:
     async def test_builtin_args_models_never_declare_tenant_id(self) -> None:
         assert "tenant_id" not in GetProductArgs.model_fields
         assert "tenant_id" not in UpdatePriceArgs.model_fields
         assert "tenant_id" not in UpdateProductContentArgs.model_fields
+        assert "tenant_id" not in RequestListingPublishArgs.model_fields

@@ -5,7 +5,7 @@ from cp_connectors.exceptions import ConnectorError, ConnectorRateLimitError
 from cp_connectors.mock import MockConnector
 from cp_connectors.types import ConnectorProduct, PriceUpdate, StockUpdate
 from cp_domain.connection import Connection
-from cp_domain.offer import Offer
+from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
 from cp_domain.product import Product
 from cp_domain.stock import Stock
@@ -236,3 +236,94 @@ class TestSyncProducts:
         await db_session.refresh(connection)
         assert connection.last_error is None
         assert connection.last_synced_at is not None
+
+
+class TestOfferStatusMapping:
+    """Phase 11: the Listing Agent's readiness check depends on
+    Offer.status reflecting marketplace reality, so a synced product's
+    connector-vocabulary status ("publish", "inactive", ...) must land
+    as the matching OfferStatus, not silently stay at the column
+    default forever."""
+
+    async def test_new_offer_gets_mapped_status_from_connector(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        await connector.create_product(
+            ConnectorProduct(sku="ACTIVE-1", name="Live listing", status="active")
+        )
+
+        await _sync(db_session, connection, connector)
+
+        offer = await db_session.scalar(select(Offer))
+        assert offer.status is OfferStatus.ACTIVE
+
+    async def test_woocommerce_publish_status_maps_to_active(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        await connector.create_product(
+            ConnectorProduct(sku="WOO-1", name="Published on Woo", status="publish")
+        )
+
+        await _sync(db_session, connection, connector)
+
+        offer = await db_session.scalar(select(Offer))
+        assert offer.status is OfferStatus.ACTIVE
+
+    async def test_allegro_inactive_status_maps_to_draft(self, db_session: AsyncSession) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        await connector.create_product(
+            ConnectorProduct(sku="ALG-1", name="Allegro draft", status="inactive")
+        )
+
+        await _sync(db_session, connection, connector)
+
+        offer = await db_session.scalar(select(Offer))
+        assert offer.status is OfferStatus.DRAFT
+
+    async def test_re_sync_updates_status_when_it_changes(self, db_session: AsyncSession) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        created = await connector.create_product(
+            ConnectorProduct(sku="ALG-2", name="Goes live later", status="inactive")
+        )
+
+        await _sync(db_session, connection, connector)
+        offer = await db_session.scalar(select(Offer))
+        assert offer.status is OfferStatus.DRAFT
+
+        await connector.publish_offer(created.external_id)
+        await _sync(db_session, connection, connector)
+
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.ACTIVE
+
+    async def test_unrecognized_status_leaves_offer_status_unchanged(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        created = await connector.create_product(
+            ConnectorProduct(sku="WEIRD-1", name="Odd status", status="active")
+        )
+
+        await _sync(db_session, connection, connector)
+        offer = await db_session.scalar(select(Offer))
+        assert offer.status is OfferStatus.ACTIVE
+
+        connector._products[created.external_id] = connector._products[
+            created.external_id
+        ].model_copy(update={"status": "some-unknown-platform-status"})
+        await _sync(db_session, connection, connector)
+
+        await db_session.refresh(offer)
+        assert offer.status is OfferStatus.ACTIVE

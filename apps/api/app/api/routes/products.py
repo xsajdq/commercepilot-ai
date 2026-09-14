@@ -214,3 +214,24 @@ async def generate_pricing_recommendation(
         "worker.generate_price_recommendation", args=[str(membership.tenant_id), str(offer.id)]
     )
     return TaskTriggeredResponse(task_id=result.id)
+
+
+@offers_router.post(
+    "/{offer_id}/generate-listing-publish-recommendation", response_model=TaskTriggeredResponse
+)
+async def generate_listing_publish_recommendation(
+    offer_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    membership: Annotated[Membership, Depends(get_current_membership)],
+) -> TaskTriggeredResponse:
+    offer = await db.scalar(
+        select(Offer).where(Offer.id == offer_id, Offer.tenant_id == membership.tenant_id)
+    )
+    if offer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+
+    result = get_celery_client().send_task(
+        "worker.generate_listing_publish_recommendation",
+        args=[str(membership.tenant_id), str(offer.id)],
+    )
+    return TaskTriggeredResponse(task_id=result.id)
