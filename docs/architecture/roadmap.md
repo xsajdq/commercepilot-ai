@@ -34,7 +34,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 16 — Dashboard polish**.
 - [x] **Phase 17 — Shoper connector**.
 - [x] **Phase 18 — PrestaShop connector**.
-- [ ] **Phase 19 — IdoSell connector** (own research first, don't force the
+- [x] **Phase 19 — IdoSell connector** (own research first, don't force the
       WooCommerce-shaped abstraction).
 - [ ] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
 - [ ] **Phase 21 — Production hardening** (backups, monitoring, alerts,
@@ -992,3 +992,74 @@ resolved `PrestaShopConnector` and made a real outbound request
 (failing gracefully against the fake store URL, the same sandbox-proxy
 403 pattern seen for every other connector's real-network verification
 in this environment). Frontend lint/typecheck/build all pass.
+
+Phase 19 complete: `IdoSellConnector`, the fifth and last platform
+integration - and a deliberately different *kind* of connector from the
+other four, exactly as the roadmap itself anticipated ("own research
+first, don't force the WooCommerce-shaped abstraction").
+
+IdoSell's official documentation (`idosell.com/developers`,
+`idosell.readme.io`) was network-blocked in this environment, same as
+Shoper's was in Phase 17 - but this time, search-engine-indexed
+fragments only surfaced enough to confirm the authentication mechanism
+(`X-API-KEY` header), the base URL (`{store_url}/api/admin/v3`), the
+pagination parameters (`result_page`/`result_limit`), one full example
+request URL (for categories), and exactly one product field name
+(`productId`). Every other field - sku, name, price, stock quantity,
+category, image shape - stayed unconfirmed. IdoSell also models stock
+per product *size*/variant rather than one flat quantity, a real
+architectural mismatch with `ConnectorProduct.stock_quantity` that no
+confirmed field name would have resolved anyway.
+
+Asked directly how to proceed given that gap, the choice was: build the
+skeleton from only what's confirmed, rather than reach for a plausible-
+sounding guess CLAUDE.md #9 forbids. The resulting connector splits
+into two honesty tiers instead of one uniform implementation:
+
+- **Reads** (`get_products`, `get_product`, `get_categories`) make the
+  real, confirmed-shape HTTP call and parse only the one confirmed
+  field, plus a generic "first list found in the response body"
+  heuristic that detects whatever the real envelope key turns out to be
+  without guessing its name. Every other `ConnectorProduct`/
+  `ConnectorCategory` field is left at its honest blank default - a
+  caller gets a real count and real ids, nothing fabricated.
+- **Writes** (`create_product`, `update_product`, `update_price`,
+  `update_stock`, `upload_image`, `publish_offer`) all raise
+  `ConnectorError` immediately: a wrong guess on a read leaves a blank
+  field, but a wrong guess on a write risks corrupting a real store's
+  actual inventory or pricing - a materially worse failure mode, and
+  the asymmetry mirrors CLAUDE.md's own higher bar for mutations than
+  reads. `get_category_parameters` still safely returns `[]`.
+
+Every `ConnectionPlatform` enum value now has a real connector -
+`cp_sync.connector_factory`'s `UnsupportedPlatformError` no longer has
+any current platform to raise for, so its own test was rewritten to
+exercise the fallback branch via a stand-in object instead of a (now
+nonexistent) unsupported real platform. `apps/web`'s Connections page
+was extended with a third `sync` state beyond `full`/`none` - `partial`
+- rendering an explicit amber caveat for IdoSell specifically ("names,
+prices, and stock stay blank... AI-driven actions aren't available for
+this platform yet") rather than either hiding the gap or implying false
+parity with the other four connectors.
+
+Verified with `httpx.MockTransport` against a `FakeIdoSellAPI` that
+deliberately uses arbitrary, made-up envelope key names precisely to
+prove the list-detection heuristic doesn't depend on guessing the real
+one, plus a parametrized test asserting every write method raises with
+a clear message. 16 new tests in
+`packages/connectors/tests/test_idosell_connector.py` bring that
+package to 95 tests (79 → 95); `packages/sync` gained a
+`test_build_idosell_connector` test and rewrote its "unsupported
+platform" test as described above (14 tests). Both packages' venvs
+rebuilt from scratch and pass. Verified against the real running stack:
+registered a tenant, created a real "idosell" connection via the HTTP
+API, and triggered a real Celery sync - the worker correctly resolved
+`IdoSellConnector` and made a real outbound request (failing gracefully
+against the fake store URL, the same sandbox-proxy 403 pattern seen for
+every other connector). Frontend lint/typecheck/build all pass.
+
+With Phase 19 done, every connector phase from the original roadmap
+(17-19) is complete: WooCommerce, Allegro, Shoper, PrestaShop, and
+IdoSell are all real, if not all equally complete - the platform gap
+that remains is now IdoSell's own write-path schema, not a missing
+connector.

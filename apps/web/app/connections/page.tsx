@@ -15,12 +15,14 @@ import AppShell from "@/components/AppShell";
 import Field from "@/components/Field";
 import StatusBadge from "@/components/StatusBadge";
 
-const PLATFORMS: { value: ConnectionPlatform; label: string; supported: boolean }[] = [
-  { value: "woocommerce", label: "WooCommerce", supported: true },
-  { value: "allegro", label: "Allegro", supported: true },
-  { value: "shoper", label: "Shoper", supported: true },
-  { value: "prestashop", label: "PrestaShop", supported: true },
-  { value: "idosell", label: "IdoSell", supported: false },
+type SyncSupport = "full" | "partial" | "none";
+
+const PLATFORMS: { value: ConnectionPlatform; label: string; sync: SyncSupport }[] = [
+  { value: "woocommerce", label: "WooCommerce", sync: "full" },
+  { value: "allegro", label: "Allegro", sync: "full" },
+  { value: "shoper", label: "Shoper", sync: "full" },
+  { value: "prestashop", label: "PrestaShop", sync: "full" },
+  { value: "idosell", label: "IdoSell", sync: "partial" },
 ];
 
 export default function ConnectionsPage() {
@@ -37,6 +39,7 @@ export default function ConnectionsPage() {
   const [shoperClientId, setShoperClientId] = useState("");
   const [shoperClientSecret, setShoperClientSecret] = useState("");
   const [prestashopApiKey, setPrestashopApiKey] = useState("");
+  const [idosellApiKey, setIdosellApiKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function refresh() {
@@ -67,7 +70,9 @@ export default function ConnectionsPage() {
               }
             : platform === "prestashop"
               ? { store_url: storeUrl, api_key: prestashopApiKey }
-              : {};
+              : platform === "idosell"
+                ? { store_url: storeUrl, api_key: idosellApiKey }
+                : {};
 
     try {
       await createConnection(token, { platform, name, credentials });
@@ -79,6 +84,7 @@ export default function ConnectionsPage() {
       setShoperClientId("");
       setShoperClientSecret("");
       setPrestashopApiKey("");
+      setIdosellApiKey("");
       refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -182,7 +188,8 @@ export default function ConnectionsPage() {
                 {PLATFORMS.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
-                    {!p.supported ? " (sync not implemented yet)" : ""}
+                    {p.sync === "none" ? " (sync not implemented yet)" : ""}
+                    {p.sync === "partial" ? " (read-only, limited)" : ""}
                   </option>
                 ))}
               </select>
@@ -294,10 +301,42 @@ export default function ConnectionsPage() {
               </>
             )}
 
-            {!selectedPlatform.supported && (
+            {platform === "idosell" && (
+              <>
+                <Field label="Store URL">
+                  <input
+                    required
+                    value={storeUrl}
+                    onChange={(e) => setStoreUrl(e.target.value)}
+                    className="input"
+                    placeholder="https://shop.example.com"
+                  />
+                </Field>
+                <Field label="Admin API key">
+                  <input
+                    required
+                    type="password"
+                    value={idosellApiKey}
+                    onChange={(e) => setIdosellApiKey(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+              </>
+            )}
+
+            {selectedPlatform.sync === "none" && (
               <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
                 The connection record can be created, but syncing this platform isn&apos;t built
                 yet - see docs/architecture/roadmap.md.
+              </p>
+            )}
+
+            {selectedPlatform.sync === "partial" && (
+              <p className="rounded-xl border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                IdoSell&apos;s official docs were unreachable while this connector was built, so
+                sync only reads real product/category ids for now - names, prices, and stock stay
+                blank, and AI-driven actions (pricing, publishing) aren&apos;t available for this
+                platform yet. See docs/architecture/roadmap.md.
               </p>
             )}
 

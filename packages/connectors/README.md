@@ -165,6 +165,50 @@ reads in JSON and parses writes as real XML (matching exactly what this
 connector sends), including a small XML builder/parser round-trip for
 the multi-language `<name><language id="1">...` shape.
 
+`IdoSellConnector` (Phase 19) is the fifth and last platform integration
+- and a deliberately different kind of connector from the other four.
+IdoSell's official documentation (`idosell.com/developers`,
+`idosell.readme.io`) was network-blocked in the environment this was
+built in, and the roadmap itself calls for "own research first, don't
+force the WooCommerce-shaped abstraction" here. Rather than guess field
+names CLAUDE.md #9 forbids inventing, this connector draws a hard,
+documented line between confirmed and unconfirmed, and its methods are
+split into two honesty tiers:
+
+- **Confirmed and fully implemented**: the `X-API-KEY` auth header, the
+  `{store_url}/api/admin/v3` base URL, `result_page`/`result_limit`
+  pagination, and one confirmed product field name (`productId`).
+- **Reads** (`get_products`, `get_product`, `get_categories`) make the
+  real, confirmed-shape HTTP call and parse only what's confirmed - a
+  real id, and a generic "first list found in the response body"
+  envelope-detection heuristic (not a guessed key name). Every other
+  field (`sku`, `name`, `price`, `stock_quantity`, category) is left at
+  its honest "unknown" default rather than mapped from an invented key -
+  a caller gets a real count and real ids, nothing fabricated. IdoSell
+  also models stock per product *size*/variant rather than one flat
+  quantity, which is exactly why the roadmap flagged this platform for
+  separate research - a confirmed field name wouldn't even map cleanly
+  onto `ConnectorProduct.stock_quantity` without further work.
+- **Writes** (`create_product`, `update_product`, `update_price`,
+  `update_stock`, `upload_image`, `publish_offer`) all raise
+  `ConnectorError` immediately, on purpose: guessing a mutating payload
+  risks writing fabricated data into a real store's real inventory or
+  pricing, a materially worse failure mode than a blank read field.
+  `get_category_parameters` still returns `[]` (safe either way).
+
+Tested against `tests/test_idosell_connector.py`'s `FakeIdoSellAPI` via
+`httpx.MockTransport`. The fake deliberately uses arbitrary, made-up
+envelope key names (`resultsList`, `categoriesList`) precisely to prove
+the connector's list-detection doesn't depend on guessing the real
+envelope key; includes a parametrized test asserting every write method
+raises with a clear "does not implement" message.
+
+A tenant can still connect an IdoSell store and get a real audit trail
+of product/category *counts* and *ids* - useful for a first-pass catalog
+inventory - but no AI-driven pricing/listing action is available for
+this platform yet, and `apps/web`'s Connections page says so explicitly
+rather than implying full parity with the other four connectors.
+
 Run its tests standalone (no DB, no other services needed):
 
 ```bash
