@@ -1,0 +1,13 @@
+[Unit]
+Description=CommercePilot PostgreSQL backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# DATABASE_URL (and, once a Hetzner Object Storage bucket exists,
+# BACKUP_S3_BUCKET/BACKUP_S3_ENDPOINT_URL/AWS credentials) live here,
+# never inline in this unit file - see backup.sh's own header for the
+# full environment variable list.
+EnvironmentFile=/etc/commercepilot/backup.env
+ExecStart=/opt/commercepilot/infrastructure/backups/backup.sh

@@ -7,6 +7,8 @@ This tree is for tests that span multiple services:
 - `integration/` — tests exercising apps together (e.g. API + worker via a
   real queue), added once there's more than one service to integrate.
 - `e2e/` — full-stack tests against the Docker Compose stack, added once
-  there's a user-facing flow worth covering end-to-end.
+  there's a user-facing flow worth covering end-to-end. `e2e/load_test.py`
+  (Phase 21) is the first thing here - see `e2e/README.md`.
 
-Empty for now — Phase 0 has no cross-service behavior yet to test.
+`unit/` and `integration/` are still empty - nothing cross-service to
+test in those two yet.

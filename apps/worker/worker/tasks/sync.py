@@ -8,7 +8,7 @@ from cp_sync.products import sync_products
 from sqlalchemy import select
 
 from worker.celery_app import app
-from worker.db import get_encryption_key, session_scope
+from worker.db import get_encryption_keys, session_scope
 
 
 @app.task(name="worker.sync_connection")
@@ -40,7 +40,7 @@ async def _sync_connection(tenant_id: uuid.UUID, connection_id: uuid.UUID) -> di
             raise ValueError(f"Connection {connection_id} not found for tenant {tenant_id}")
 
         credentials = decrypt_credentials(
-            connection.encrypted_credentials, key=get_encryption_key()
+            connection.encrypted_credentials, key=get_encryption_keys()
         )
         connector = build_connector(connection, credentials)
 

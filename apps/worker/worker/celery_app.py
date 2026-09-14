@@ -2,8 +2,21 @@ import os
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import setup_logging
+from cp_shared.logging import configure_logging
+
+import worker.observability  # noqa: F401 - registers Sentry + Prometheus signal handlers
 
 redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+
+
+@setup_logging.connect
+def _configure_worker_logging(**kwargs) -> None:
+    """Fully replaces Celery's own logging setup (the documented way to
+    opt out of it) with our JSON + secret-redacting configuration -
+    otherwise Celery installs its own colorized text formatter that
+    bypasses `RedactingFilter` entirely."""
+    configure_logging(service_name="worker")
 
 app = Celery(
     "commercepilot",
@@ -18,6 +31,7 @@ app = Celery(
         "worker.tasks.catalog",
         "worker.tasks.analytics",
         "worker.tasks.scheduler",
+        "worker.tasks.maintenance",
     ],
 )
 

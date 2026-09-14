@@ -37,7 +37,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 19 — IdoSell connector** (own research first, don't force the
       WooCommerce-shaped abstraction).
 - [x] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
-- [ ] **Phase 21 — Production hardening** (backups, monitoring, alerts,
+- [x] **Phase 21 — Production hardening** (backups, monitoring, alerts,
       rate limiting, WAF, secret rotation, load testing, DR).
 - [ ] **Phase 22 — Beta** (5 pilot stores: 2 WooCommerce, 2 Allegro-heavy,
       1 complex).
@@ -1188,3 +1188,155 @@ checkout rejection and webhook signature rejection paths. Visually
 verified the `/billing` page end-to-end with a headless browser against
 the real API - plan cards, spend bar, and the "Billing isn't configured"
 message all render correctly. Frontend lint/typecheck/build all pass.
+
+## Phase 21: Production hardening (backups, monitoring, alerts, rate
+## limiting, WAF, secret rotation, load testing, DR)
+
+The roadmap named eight things: backups, monitoring, alerts, rate
+limiting, WAF, secret rotation, load testing, and DR. No other spec
+existed, so - same as every other phase - every concrete design
+decision below was made here, split into eight sub-phases (21a-21h)
+the same way Phase 20 split into seven, each independently verified
+against a real running stack before the next began.
+
+**21a - structured logging + secret redaction.** New `cp_shared.logging`:
+JSON structured logging with a `RedactingFilter` that scrubs known
+sensitive field names (`access_token`, `password`, `stripe_secret_key`,
+...) and pattern-matches *real, recognized* secret shapes this codebase
+actually produces - a JWT (`eyJ...`), a Fernet-encrypted blob
+(`gAAAAA...`), a `Bearer ...` header, a Stripe key (`sk_live_`/`whsec_`).
+Deliberately honest about its limits (see the module's own docstring):
+an opaque high-entropy value with no recognizable prefix - this app's
+own refresh tokens - is NOT pattern-matched, since a generic
+"looks-random" heuristic would false-positive on ordinary ids without
+being a real guarantee; the primary defense stays discipline at each
+call site, never passing a secret to a logger. Wired into apps/api
+(`create_app()`) and apps/worker (via Celery's `setup_logging` signal,
+the documented way to fully replace its own logging setup). Gave
+`packages/shared` its first-ever standalone test suite (11 tests) -
+until now it was only tested indirectly through the apps that import it.
+
+**21b - Sentry + Prometheus observability.** `sentry_sdk.init()` in both
+apps (no-op without `SENTRY_DSN`), scrubbed through a new
+`cp_shared.sentry.scrub_event` that reuses the exact same sensitive-key
+list as the logging redactor rather than maintaining two. A new
+`/metrics` endpoint in apps/api (`prometheus_client`, a plain ASGI
+middleware measuring request count/latency by route template + status -
+reads `scope["route"]` *after* the inner app runs, so the label
+cardinality stays bounded regardless of how many distinct product ids
+get requested). Celery task metrics in apps/worker needed real care:
+the default `prefork` pool runs every task in a forked child process, so
+a plain in-memory counter would only ever see the parent's own empty
+one - `prometheus_client.multiprocess` (the same technique Gunicorn
+uses) solves this, with the metrics HTTP server started exactly once
+from the parent via Celery's `worker_init` signal. Verified for real:
+ran a live `celery worker --concurrency=2`, which picked up a large
+backlog of leftover tasks from earlier phases' own real-stack
+verification sessions, and `celery_task_total` correctly aggregated
+real SUCCESS/FAILURE outcomes across both forked children. New
+`infrastructure/observability/` (Prometheus scrape config + an
+auto-provisioned Grafana dashboard - 6 panels covering API and Celery
+health) wired into `docker-compose.yml` behind an `observability`
+profile so the default local dev loop stays lightweight.
+
+**21c - Redis-backed rate limiting.** A fixed 60-second-window limiter
+(own code - `INCR`+`EXPIRE`, not a new dependency, consistent with
+`cp_sync`'s own retry-helper philosophy), tighter on `/auth/*` (10/min
+default) than everywhere else (120/min) since login/register/refresh
+are the obvious brute-force target. Client IP resolution trusts
+`X-Forwarded-For`'s first entry (Traefik always sits in front in every
+real deployment), with the honestly-documented limitation that a
+request reaching the app directly could forge that header - low
+severity for what this defends against. A real subtlety: an async
+Redis client bound to one event loop crashes if reused from another,
+and this app's own test suite runs two different loop lifecycles in
+the same process (the shared `AsyncClient` fixture's session loop, and
+`test_health.py`'s plain synchronous `TestClient`) - `get_redis_client()`
+is deliberately *not* cached, mirroring `health.py`'s own
+already-established "build fresh, use, close" pattern for exactly this
+reason. Verified for real: 10 real requests to an auth route succeed,
+the 11th and 12th get a real 429 with a `Retry-After` header, and
+Prometheus (deliberately made the outermost middleware) correctly
+counts the 429s too.
+
+**21d - security headers + WAF-lite + Traefik hardening.** A
+`SecurityHeadersMiddleware` (HSTS, `X-Content-Type-Options`,
+`X-Frame-Options: DENY`, `Referrer-Policy`, a `default-src 'none'` CSP
+appropriate for a pure JSON API) on every response except the
+interactive `/docs`/`/redoc` (which load real CDN JS/CSS a strict CSP
+would break). New `infrastructure/traefik/dynamic/security.yml` -
+proxy-layer headers + a coarser IP rate limit, defense in depth for
+once a real deployment terminates TLS through Traefik (its field names
+verified against Traefik's own current docs rather than guessed).
+`docs/security/waf.md` documents what to actually turn on in
+Cloudflare (managed ruleset, rate limiting rules, Bot Fight Mode) -
+honestly scoped as documentation only, since Cloudflare is an external
+account/dashboard no code in this repo can configure.
+
+**21e - secret rotation.** `ENCRYPTION_KEY` and `SECRET_KEY` both get a
+"current + previous" pair (`ENCRYPTION_KEY_PREVIOUS`/
+`SECRET_KEY_PREVIOUS`) rather than an arbitrary key list, since a
+rotation is a two-state operation, not an open-ended history.
+`cp_shared.crypto` now uses `cryptography.fernet.MultiFernet` - Fernet's
+own documented zero-downtime-rotation primitive - so a `Connection` row
+encrypted under an old key keeps decrypting during the overlap window.
+JWT verification tries the current key, then the previous one, so an
+already-issued access token survives a `SECRET_KEY` rotation until it
+naturally expires rather than instantly logging out every session. New
+`worker.reencrypt_all_connections` Celery task migrates every row onto
+the new key; `docs/security/secret-rotation.md` is the runbook.
+Verified for real, twice: rotated `ENCRYPTION_KEY` and ran the
+migration task against the real dev database (9 real connections
+accumulated from every prior phase's own real-stack testing - 0
+failures, and the migrated row decrypted with the new key *alone*
+afterward); and rotated `SECRET_KEY` on a live running API, confirming
+a token issued under the old key still returned 200 from `/auth/me`
+with the old key listed as `SECRET_KEY_PREVIOUS`.
+
+**21f - real backup + restore drill.** `infrastructure/backups/backup.sh`
+(daily `pg_dump`, Sunday's dump doubles as the weekly copy, local
+retention pruning, an optional S3-compatible offsite upload for once a
+real Hetzner Object Storage bucket exists) and `restore.sh` (never reads
+its target from the environment implicitly - always named explicitly on
+the command line, so a drill can't accidentally target a live database).
+Actually run, not just written: backed up the real local dev database,
+restored it into a fresh scratch database, and compared - identical row
+counts across six tables and an identical MD5 checksum over every
+`connections.encrypted_credentials` value, proving exact content
+preservation, not just row counts. systemd service/timer units included
+for once a real server exists to install them on.
+
+**21g - load test.** `tests/e2e/load_test.py` - the first real content
+in the `tests/` cross-cutting tree that's existed empty since Phase 0.
+Plain `httpx`+`asyncio` (no new dependency) rather than a load-testing
+framework, matching this codebase's preference for owning small direct
+tooling. Had to reckon with 21c's own rate limiter: every virtual user
+in a load test shares one source IP, so the limiter's per-IP (not
+per-tenant) design - already an honestly-documented limitation - would
+otherwise dominate the results; the script's own docs explain running
+it against a deliberately relaxed limit to measure real API performance
+instead of re-proving the limiter works. Real run: 10 concurrent
+virtual users (each its own real tenant) against a realistic mix of
+6 authenticated routes for 20s - 2781 requests, 100% 2xx, 135 req/s,
+p50 57ms/p99 234ms - cross-confirmed by Prometheus's own
+`http_requests_total` independently counting 2792 (including setup
+registrations). Documented honestly as a "does this regress" baseline
+from one sandboxed machine, never a production capacity claim.
+
+**21h - DR runbook.** `docs/architecture/disaster-recovery.md` covers
+four scenarios (container crash, Postgres volume loss, whole-server
+loss, a bad deploy silently corrupting data) with concrete recovery
+steps for each, and honestly separates what's actually been verified
+(the backup/restore mechanics themselves, for real, in 21f) from what
+remains a plan against infrastructure that doesn't exist yet (a real
+Hetzner server, a real Object Storage bucket, an Alertmanager to page
+anyone). `docs/architecture/deployment.md` updated throughout to stop
+saying "nothing here exists yet" where it no longer applies.
+
+Verified: fresh venvs across `packages/shared` (22 tests, up from 0 -
+its first-ever standalone suite), `apps/api` (143, up from 125), and
+`apps/worker` (52, up from 48) all pass, ruff clean. No `apps/web`
+changes this phase (production hardening is a backend/infra concern) so
+no frontend re-verification was needed. Every sub-phase's real-stack
+claim above was independently run against a real local Postgres/Redis/
+API/worker stack, not asserted from unit tests alone.

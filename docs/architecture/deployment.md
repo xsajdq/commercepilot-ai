@@ -1,9 +1,13 @@
-# Deployment plan (not implemented yet)
+# Deployment plan
 
-Captured ahead of building it - this is Phase 21 (production hardening)
-and Phase 22 (beta) territory. Nothing here exists in the repo yet
-(there's no deploy workflow, no staging environment, no monitoring
-stack); don't start building against this until those phases are next.
+Phase 21 (production hardening) built the *application-level* pieces
+of this plan for real - structured logging, Sentry, Prometheus metrics,
+rate limiting, security headers, secret rotation, and backup/restore
+scripts, all listed below with what's actually implemented vs. what
+still needs a real server to exist. The deploy pipeline itself (a real
+Hetzner box, GitHub Actions SSH deploy, a real staging environment) is
+still Phase 22 (beta) territory - none of that can be built from inside
+this repo without a real server/account to point it at.
 
 ## Deploy pipeline
 
@@ -35,20 +39,28 @@ pipeline without ever touching a real seller's live store or orders.
 
 ## Monitoring
 
-Dashboard, once there's infrastructure to put it on (Prometheus/Grafana,
-per CLAUDE.md's stack):
+Local Prometheus + Grafana now exist (`docker compose --profile
+observability up` - see `infrastructure/observability/README.md`),
+with a real dashboard covering:
 
-- API latency
-- CPU / RAM / disk
-- PostgreSQL and Redis health
-- Celery queue length
-- failed job count
-- AI cost (ties into the Phase 31-equivalent cost guard from the original
-  product spec, once billing/usage limits exist)
-- connector error rate (WooCommerce/Allegro API failures, by type)
+- API request rate/latency/error rate by route (`apps/api/app/core/metrics.py`)
+- Celery task throughput/duration/failure count by task name
+  (`apps/worker/worker/observability.py`)
+
+Not yet wired up (real, honestly-tracked gaps - each needs a metrics
+exporter sidecar this repo has nowhere to run yet):
+
+- CPU / RAM / disk (`node_exporter`)
+- PostgreSQL and Redis health (`postgres_exporter`/`redis_exporter`)
+- AI cost as a Grafana panel - the real number already exists
+  (`cp_billing`'s cost guard, Phase 20) and is queryable via
+  `GET /billing`; it just isn't graphed yet.
+- connector error rate by platform
 
 Alert thresholds (starting point, tune once there's real traffic to
-calibrate against):
+calibrate against) - Prometheus/Grafana can now evaluate these, but no
+Alertmanager (or anywhere to send a notification) exists yet, so
+nothing pages anyone:
 
 - queue length > 1000
 - CPU > 90%
@@ -58,7 +70,28 @@ calibrate against):
 
 ## Backups
 
-See `infrastructure/backups/README.md` for the concrete plan (daily
-Postgres backup, weekly full backup, offsite copy, monthly restore
-drill). The rule worth repeating: a backup that has never been restored
-is not a backup you can rely on.
+See `infrastructure/backups/README.md` for `backup.sh`/`restore.sh` -
+real scripts, verified with a real backup-and-restore drill against a
+real Postgres instance (row counts and a content checksum both matched
+exactly). What's still deferred: the real Hetzner Object Storage bucket
+the offsite copy needs, and installing the systemd timer on an actual
+server - neither can be created from inside this repo. See
+`docs/architecture/disaster-recovery.md` for the runbook these scripts
+serve.
+
+## Security hardening (Phase 21)
+
+- Structured JSON logging with secret redaction
+  (`packages/shared/cp_shared/logging.py`) in both apps.
+- Sentry error tracking (`app/core/sentry.py` /
+  `worker/observability.py`), scrubbed through the same redaction rules
+  (`cp_shared/sentry.py`) - a no-op until `SENTRY_DSN` is configured.
+- Per-IP rate limiting (`apps/api/app/core/rate_limit.py`), tighter on
+  `/auth/*`.
+- Security response headers (`apps/api/app/core/security_headers.py`)
+  plus proxy-layer hardening for a real deployment
+  (`infrastructure/traefik/dynamic/security.yml`).
+- `ENCRYPTION_KEY`/`SECRET_KEY` rotation support without downtime - see
+  `docs/security/secret-rotation.md`.
+- What the edge WAF (Cloudflare) should add on top of all of the
+  above - see `docs/security/waf.md`.

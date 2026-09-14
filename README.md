@@ -8,8 +8,8 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 20**
-(Billing): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 21**
+(Production hardening): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
 WooCommerce + Allegro + Shoper + PrestaShop + IdoSell connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
@@ -67,7 +67,15 @@ deterministic per-token cost from a maintained model rate card, and
 against their plan's budget before every billed AI call, blocking (not
 crashing) the ones that would go over. `apps/api` exposes `GET /billing`
 plus Stripe checkout/portal/webhook routes, and `apps/web` gained a
-`/billing` page.
+`/billing` page. Phase 21 hardened both backend apps for production:
+structured JSON logging with secret redaction, Sentry error tracking,
+Prometheus metrics (with a local Grafana dashboard), Redis-backed
+per-IP rate limiting, security response headers, zero-downtime
+`ENCRYPTION_KEY`/`SECRET_KEY` rotation, real backup/restore scripts
+(verified with an actual drill against a real database), a load test,
+and a disaster-recovery runbook - see `docs/architecture/roadmap.md`'s
+Phase 21 writeup for what's real vs. what still needs an actual
+production server to exist.
 
 ## Repository layout
 

@@ -2,7 +2,11 @@
 
 Threat model, secret-handling policy, and tenant-isolation test notes.
 See `CLAUDE.md` for the non-negotiable rules (never trust client
-`tenant_id`, never log credentials/PII, secrets encrypted at rest).
+`tenant_id`, never log credentials/PII, secrets encrypted at rest). See
+`docs/security/waf.md` for the edge/WAF layer (Phase 21) - a separate
+concern from everything below, which is all application-level. See
+`docs/security/secret-rotation.md` for how to rotate `ENCRYPTION_KEY`
+and `SECRET_KEY` without downtime.
 
 ## Mandatory test categories
 
@@ -19,8 +23,16 @@ manual check.
   auth.
 - **Secret leakage**: an API token, refresh token, or connector
   credential must never appear in a log line, an error message returned
-  to a client, or an exception traceback shipped anywhere. Depends on
-  having real logging in place (not built yet) to test against.
+  to a client, or an exception traceback shipped anywhere. Real
+  structured logging (Phase 21) exists now - see
+  `packages/shared/cp_shared/logging.py`'s `RedactingFilter` and
+  `packages/shared/tests/test_logging.py`, plus the equivalent Sentry
+  event scrubber (`cp_shared/sentry.py`, `test_sentry.py`) for anything
+  a captured exception's stack-frame locals might carry. Both are
+  pattern-based for *known, real* secret shapes this codebase actually
+  produces (see that module's own docstring for the honest limits) -
+  the primary guarantee is still discipline at each call site, never
+  passing a secret to a logger in the first place.
 - **Prompt injection** (see below) - depends on the AI tool system
   (Phase 7).
 - **Tool authorization**: an agent must never be able to call a tool

@@ -17,6 +17,7 @@ python-jose[cryptography]==3.3.0
 bcrypt==5.0.0
 cryptography==44.0.0
 sentry-sdk[fastapi]==2.19.2
+prometheus-client==0.21.1
 # apps/api only ever enqueues tasks by name (see app/core/celery_client.py)
 # - it never imports apps/worker's task modules, so no `include=[...]`
 # worker config is needed here, just the client library.

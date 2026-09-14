@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.pool import NullPool
 
-__all__ = ["Base", "get_encryption_key", "session_scope"]
+__all__ = ["Base", "get_encryption_key", "get_encryption_keys", "session_scope"]
 
 
 class _TenantRef(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -68,6 +68,22 @@ def get_encryption_key() -> str:
     it via monkeypatch/env before a task actually needs to decrypt.
     """
     return os.environ["ENCRYPTION_KEY"]
+
+
+def get_encryption_keys() -> list[str]:
+    """Current key first, optional `ENCRYPTION_KEY_PREVIOUS` appended
+    only during a rotation window - mirrors apps/api's
+    `Settings.encryption_keys` (see its own docstring and
+    docs/security/secret-rotation.md). Every real decrypt of an
+    existing `Connection.encrypted_credentials` row should use this,
+    not the singular key, so a row written before a rotation still
+    decrypts correctly during the overlap window.
+    """
+    keys = [get_encryption_key()]
+    previous = os.environ.get("ENCRYPTION_KEY_PREVIOUS")
+    if previous:
+        keys.append(previous)
+    return keys
 
 
 @asynccontextmanager

@@ -16,7 +16,7 @@ from cp_sync.connector_factory import build_connector
 from sqlalchemy import select
 
 from worker.celery_app import app
-from worker.db import get_encryption_key, session_scope
+from worker.db import get_encryption_keys, session_scope
 
 
 @app.task(name="worker.generate_listing_publish_recommendation")
@@ -122,7 +122,7 @@ async def _publish_listing_to_marketplace(tenant_id: uuid.UUID, offer_id: uuid.U
 
         connection = await db.get(Connection, offer.connection_id)
         credentials = decrypt_credentials(
-            connection.encrypted_credentials, key=get_encryption_key()
+            connection.encrypted_credentials, key=get_encryption_keys()
         )
         connector = build_connector(connection, credentials)
 

@@ -27,4 +27,8 @@ COPY apps/worker/worker apps/worker/worker
 
 WORKDIR /repo/apps/worker
 
+# Prometheus metrics (Phase 21) - only the real `worker` command ever
+# binds this (see worker/observability.py); `celery beat` never does.
+EXPOSE 9808
+
 CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=INFO"]

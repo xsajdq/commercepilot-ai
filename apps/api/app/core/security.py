@@ -47,11 +47,25 @@ def create_access_token(
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
+    """Tries every currently-valid verification key in turn (see
+    `Settings.jwt_verification_keys` and `secret_key_previous`'s own
+    docstring) - a token signed under a key that has since become
+    "previous" during a rotation still verifies until it naturally
+    expires, rather than every logged-in user being force-logged-out
+    the moment `secret_key` rotates."""
     settings = get_settings()
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError as exc:
-        raise InvalidTokenError(str(exc)) from exc
+    last_error: JWTError | None = None
+    payload: dict[str, Any] | None = None
+
+    for key in settings.jwt_verification_keys:
+        try:
+            payload = jwt.decode(token, key, algorithms=[settings.jwt_algorithm])
+            break
+        except JWTError as exc:
+            last_error = exc
+
+    if payload is None:
+        raise InvalidTokenError(str(last_error))
 
     if payload.get("type") != "access":
         raise InvalidTokenError("not an access token")

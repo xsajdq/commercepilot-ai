@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
+from app.core.redis_client import get_redis_client  # noqa: E402
 from app.db import models  # noqa: E402,F401  (registers metadata)
 from app.db.base import Base, async_session_factory, engine  # noqa: E402
 from app.db.models.tenant import Tenant  # noqa: E402
@@ -43,6 +44,24 @@ async def _clean_tables():
     yield
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE TABLE {_TABLES} RESTART IDENTITY CASCADE"))
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_rate_limits():
+    """Runs *before* every test (not just after, like `_clean_tables`):
+    the Phase 21 rate limiter counts real requests in real Redis keyed
+    by client IP, and every test's `AsyncClient` looks like the same IP
+    to it - without resetting the counter at the start of each test, an
+    unrelated test earlier in the same run could exhaust an auth-route
+    test's budget before it even starts."""
+    client = get_redis_client()
+    try:
+        keys = [key async for key in client.scan_iter(match="ratelimit:*")]
+        if keys:
+            await client.delete(*keys)
+    finally:
+        await client.aclose()
+    yield
 
 
 @pytest_asyncio.fixture

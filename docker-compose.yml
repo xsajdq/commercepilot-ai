@@ -56,6 +56,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://commercepilot:commercepilot@postgres:5432/commercepilot}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -81,6 +82,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    expose:
+      - "9808" # Prometheus metrics - scraped by the `prometheus` service, never exposed to the host
     depends_on:
       postgres:
         condition: service_healthy
@@ -122,5 +126,35 @@ services:
       - traefik.http.routers.web.rule=Host(`commercepilot.localhost`)
       - traefik.http.services.web.loadbalancer.server.port=3000
 
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    profiles: ["observability"]
+    volumes:
+      - ./infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+      - worker
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./infrastructure/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards/commercepilot:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

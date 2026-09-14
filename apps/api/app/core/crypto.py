@@ -7,8 +7,8 @@ from app.core.config import get_settings
 
 
 def encrypt_credentials(data: dict[str, Any]) -> str:
-    return _encrypt_credentials(data, key=get_settings().encryption_key)
+    return _encrypt_credentials(data, key=get_settings().encryption_keys)
 
 
 def decrypt_credentials(token: str) -> dict[str, Any]:
-    return _decrypt_credentials(token, key=get_settings().encryption_key)
+    return _decrypt_credentials(token, key=get_settings().encryption_keys)

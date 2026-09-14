@@ -1,0 +1,38 @@
+# Traefik dynamic configuration (Phase 21) - proxy-layer hardening,
+# defense in depth alongside apps/api's own middleware
+# (app/core/security_headers.py, app/core/rate_limit.py). Neither layer
+# substitutes for the other: the app-level one is what every automated
+# test in this repo actually exercises against a real running process;
+# this one only ever applies once there's a real deployment terminating
+# TLS through Traefik (see infrastructure/hetzner/README.md - the
+# production `traefik.yml`/compose wiring that would reference this
+# file doesn't exist yet, so nothing here is validated by CI or a real
+# run - it's written for that phase, honestly labeled as such).
+#
+# To use: reference these middleware names on a router via labels once
+# a production docker-compose override exists, e.g.:
+#   - traefik.http.routers.api.middlewares=security-headers@file,proxy-rate-limit@file
+
+http:
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+        customResponseHeaders:
+          Server: "" # don't advertise Traefik's own version string
+
+    # A coarser, IP-level backstop above apps/api's own per-route Redis
+    # limiter - catches raw connection floods before they even reach an
+    # app container. Numbers here are a starting point (see
+    # docs/architecture/deployment.md's "not calibrated against real
+    # traffic yet" note) - tune once there's real production traffic.
+    proxy-rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1m

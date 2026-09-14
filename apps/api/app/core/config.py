@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     secret_key: str = "change-me-in-production"
+    # Set only during a JWT signing-key rotation (Phase 21) - a still-
+    # valid access token signed under the OLD key keeps verifying until
+    # it naturally expires, so rotating `secret_key` never forces every
+    # logged-in user to re-login mid-rotation. Remove once every token
+    # issued under the old key has expired (`access_token_expire_minutes`
+    # after the rotation). New tokens are always signed with `secret_key`
+    # alone - this is verification-only.
+    secret_key_previous: str | None = None
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
@@ -28,6 +36,13 @@ class Settings(BaseSettings):
     # one key for both JWT signing and data encryption is bad practice.
     # Production must set a real ENCRYPTION_KEY (Fernet.generate_key()).
     encryption_key: str = "PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk="
+    # Set only during an encryption-key rotation (Phase 21) - existing
+    # `Connection.encrypted_credentials` rows written under the OLD key
+    # still decrypt (`cp_shared.crypto` tries every key in the list) while
+    # new/updated rows always encrypt under `encryption_key` alone. Run
+    # `worker.reencrypt_all_connections` to migrate every row onto the
+    # new key, then remove this - see docs/security/secret-rotation.md.
+    encryption_key_previous: str | None = None
 
     cors_allow_origins: list[str] = ["http://localhost:3000"]
 
@@ -45,6 +60,34 @@ class Settings(BaseSettings):
     stripe_price_id_pro: str | None = None
     # Where Stripe Checkout/Billing Portal send the browser back to.
     billing_return_url: str = "http://localhost:3000/billing"
+
+    # Rate limiting (Phase 21) - per-IP, fixed 60s window, enforced by
+    # `app/core/rate_limit.py`. Auth endpoints get a much tighter limit
+    # than the rest of the API since they're the obvious brute-force
+    # target (login/register/refresh). These are starting points, not
+    # calibrated against real traffic yet - same caveat as
+    # docs/architecture/deployment.md's alert thresholds.
+    rate_limit_default_per_minute: int = 120
+    rate_limit_auth_per_minute: int = 10
+
+    @property
+    def encryption_keys(self) -> list[str]:
+        """Current key first (used for every new encryption), previous
+        key appended only during a rotation window - see
+        `encryption_key_previous`'s own docstring."""
+        keys = [self.encryption_key]
+        if self.encryption_key_previous:
+            keys.append(self.encryption_key_previous)
+        return keys
+
+    @property
+    def jwt_verification_keys(self) -> list[str]:
+        """Same shape as `encryption_keys`, for JWT signature
+        verification - see `secret_key_previous`'s own docstring."""
+        keys = [self.secret_key]
+        if self.secret_key_previous:
+            keys.append(self.secret_key_previous)
+        return keys
 
 
 @lru_cache

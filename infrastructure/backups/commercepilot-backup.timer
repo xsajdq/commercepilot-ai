@@ -1,0 +1,11 @@
+[Unit]
+Description=Run CommercePilot PostgreSQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# Runs the missed backup on the next boot if the server was down at
+# 03:00 - a skipped day should be visible and correctable, not silent.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
