@@ -39,6 +39,28 @@ def _mapped_offer_status(raw_status: str) -> OfferStatus | None:
     return _STATUS_MAP.get(raw_status.lower())
 
 
+def _effective_sku(connection_id: uuid.UUID, product: ConnectorProduct) -> str:
+    """WooCommerce (and other platforms) allow a product with no SKU set
+    at all - real, especially older or imported, catalogs routinely have
+    some. `Product`/`Variant` use `(tenant_id, sku)` as their matching
+    key for this upsert (and enforce it as a DB unique constraint), so
+    letting every such product fall back to `sku=""` would collapse them
+    all onto the very first one synced - each later product would
+    silently overwrite the last, which is exactly the "only 1 product
+    ever gets synced" bug this exists to prevent.
+
+    A connector-scoped synthetic sku keeps each one distinct without
+    inventing a real spec value (CLAUDE.md #9 is about customer-facing
+    data, not this package's own internal matching key) - the `noSKU-`
+    prefix keeps it visibly synthetic, never presented as the
+    platform's real SKU.
+    """
+    if product.sku and product.sku.strip():
+        return product.sku
+    external_id = product.external_id or uuid.uuid4().hex
+    return f"noSKU-{connection_id.hex[:8]}-{external_id}"
+
+
 @dataclass
 class SyncFailure:
     sku: str
@@ -139,11 +161,13 @@ async def sync_products(
 async def _upsert_product(
     db: AsyncSession, *, tenant_id: uuid.UUID, connection: Connection, product: ConnectorProduct
 ) -> None:
+    sku = _effective_sku(connection.id, product)
+
     domain_product = await db.scalar(
-        select(Product).where(Product.tenant_id == tenant_id, Product.sku == product.sku)
+        select(Product).where(Product.tenant_id == tenant_id, Product.sku == sku)
     )
     if domain_product is None:
-        domain_product = Product(tenant_id=tenant_id, sku=product.sku, name=product.name)
+        domain_product = Product(tenant_id=tenant_id, sku=sku, name=product.name)
         db.add(domain_product)
         await db.flush()
     else:
@@ -154,10 +178,10 @@ async def _upsert_product(
             domain_product.ean = product.ean
 
     variant = await db.scalar(
-        select(Variant).where(Variant.tenant_id == tenant_id, Variant.sku == product.sku)
+        select(Variant).where(Variant.tenant_id == tenant_id, Variant.sku == sku)
     )
     if variant is None:
-        variant = Variant(tenant_id=tenant_id, product_id=domain_product.id, sku=product.sku)
+        variant = Variant(tenant_id=tenant_id, product_id=domain_product.id, sku=sku)
         db.add(variant)
         await db.flush()
 

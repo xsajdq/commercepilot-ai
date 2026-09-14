@@ -69,6 +69,19 @@ depends on `Offer.status` reflecting marketplace reality; before that, a
 synced offer's status was fetched from the connector and silently
 dropped, sitting at the column default forever.
 
+Skuless products: WooCommerce (and other platforms) allow a product
+with no SKU at all - real, especially older or imported, catalogs
+routinely have some. `_upsert_product` matches `Product`/`Variant` by
+`(tenant_id, sku)`, so before this fix, every skuless product fell back
+to `sku=""` and collapsed onto the very first one synced - a store with
+several skuless products would end up with exactly one row for all of
+them combined, each sync overwriting the last (reported as "only 1
+product ever gets synced" against a real WooCommerce store).
+`_effective_sku` now derives a connector-scoped synthetic sku
+(`noSKU-<connection>-<external_id>`) for these, keeping each one
+distinct without inventing a real spec value (CLAUDE.md #9 is about
+customer-facing data, not this package's own internal matching key).
+
 Tested via `apps/api/tests/test_sync_products.py` (DB-integration tests
 against a real Postgres, reusing apps/api's test fixtures) rather than
 this package's own `tests/` - `sync_products` needs a real `AsyncSession`

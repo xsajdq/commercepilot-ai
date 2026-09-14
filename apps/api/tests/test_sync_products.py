@@ -327,3 +327,99 @@ class TestOfferStatusMapping:
 
         await db_session.refresh(offer)
         assert offer.status is OfferStatus.ACTIVE
+
+
+class TestSkulessProducts:
+    """WooCommerce (and other platforms) allow a product with no SKU at
+    all - real catalogs routinely have some. Before the fix, every such
+    product fell back to sku="" and collapsed onto the same Product/
+    Variant row on upsert (matched by (tenant_id, sku)) - each later
+    product silently overwrote the one before it, so a store with N
+    skuless products among its catalog only ever ended up with 1 row for
+    all of them combined."""
+
+    async def test_multiple_skuless_products_get_distinct_rows(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        await connector.create_product(ConnectorProduct(sku="", name="First product"))
+        await connector.create_product(ConnectorProduct(sku="", name="Second product"))
+        await connector.create_product(ConnectorProduct(sku="", name="Third product"))
+
+        result = await _sync(db_session, connection, connector)
+
+        assert result.products_seen == 3
+        assert result.products_upserted == 3
+        assert await _count(db_session, Product) == 3
+        assert await _count(db_session, Variant) == 3
+        assert await _count(db_session, Offer) == 3
+
+        names = {
+            p.name for p in (await db_session.scalars(select(Product))).all()
+        }
+        assert names == {"First product", "Second product", "Third product"}
+
+    async def test_resyncing_a_skuless_product_updates_the_same_row(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        created = await connector.create_product(
+            ConnectorProduct(sku="", name="Original name", price=Decimal("10.00"))
+        )
+
+        await _sync(db_session, connection, connector)
+        await connector.update_product(
+            created.external_id,
+            ConnectorProduct(sku="", name="Renamed", price=Decimal("10.00")),
+        )
+        await _sync(db_session, connection, connector)
+
+        assert await _count(db_session, Product) == 1
+        product = await db_session.scalar(select(Product))
+        assert product.name == "Renamed"
+
+    async def test_skuless_products_on_different_connections_stay_distinct(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection_a = await make_connection(db_session, tenant, name="Store A")
+        connection_b = await make_connection(db_session, tenant, name="Store B")
+
+        # Same platform-assigned external_id on two different stores -
+        # a real, plausible collision (each WooCommerce install numbers
+        # its own products starting from 1) that the synthetic sku must
+        # not conflate.
+        connector_a = MockConnector()
+        await connector_a.create_product(
+            ConnectorProduct(sku="", name="Store A's product", external_id="1")
+        )
+        connector_b = MockConnector()
+        await connector_b.create_product(
+            ConnectorProduct(sku="", name="Store B's product", external_id="1")
+        )
+
+        await _sync(db_session, connection_a, connector_a)
+        await _sync(db_session, connection_b, connector_b)
+
+        assert await _count(db_session, Product) == 2
+        names = {
+            p.name for p in (await db_session.scalars(select(Product))).all()
+        }
+        assert names == {"Store A's product", "Store B's product"}
+
+    async def test_skuless_product_gets_a_visibly_synthetic_sku(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await make_tenant(db_session)
+        connection = await make_connection(db_session, tenant)
+        connector = MockConnector()
+        await connector.create_product(ConnectorProduct(sku="", name="No sku here"))
+
+        await _sync(db_session, connection, connector)
+
+        product = await db_session.scalar(select(Product))
+        assert product.sku.startswith("noSKU-")
