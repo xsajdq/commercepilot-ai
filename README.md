@@ -8,8 +8,8 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 14**
-(competition agent): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 15**
+(daily scheduler): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
 WooCommerce + Allegro connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
@@ -25,7 +25,12 @@ CLAUDE.md #2) rather than only our own database; the catalog and
 analytics agents are the two real uses of the Phase-2-scaffolded `AIJob`
 table; the competition agent closed a gap that had existed since
 Phase 9 - the pricing engine always accepted competitor prices, nothing
-had ever actually supplied them.
+had ever actually supplied them. Phase 15 populated Celery Beat's
+`beat_schedule` (empty since Phase 0): a daily 01:00 UTC sync of every
+connection and a 02:00 UTC fan-out of the catalog/analytics/pricing/
+listing agents across every tenant, each dispatcher task doing nothing
+but enumerate real rows and enqueue the same tasks the manual UI buttons
+already call - no new agent, model, or route needed.
 
 ## Repository layout
 

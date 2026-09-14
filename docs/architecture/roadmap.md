@@ -30,7 +30,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 12 — Catalog agent** (daily catalog health audit).
 - [x] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
 - [x] **Phase 14 — Competition agent** (manual competitors + API sources).
-- [ ] **Phase 15 — Recommendations** (daily scheduler tying agents together).
+- [x] **Phase 15 — Recommendations** (daily scheduler tying agents together).
 - [ ] **Phase 16 — Dashboard polish**.
 - [ ] **Phase 17 — Shoper connector**.
 - [ ] **Phase 18 — PrestaShop connector**.
@@ -700,3 +700,75 @@ falls back to the uncapped cost-based price - bringing it to 34). All
 touched apps' venvs rebuilt from scratch and pass; migration verified
 upgrade → downgrade → upgrade; docker compose config valid; frontend
 lint/typecheck/build clean.
+
+Phase 15 complete: the daily scheduler, `beat_schedule` finally populated
+after sitting empty since Phase 0 (with forward-references added in
+Phases 9, 12, and 13 all pointing here). No new domain model, migration,
+or API route - this phase is purely two new `apps/worker` tasks plus
+Celery Beat wiring, since every per-entity agent trigger it needs already
+existed as a manual endpoint.
+
+`worker.tasks.scheduler` adds two dispatcher tasks, each doing nothing
+but enumerate real rows and `.delay()` other, already-existing tasks -
+no business logic of its own to keep correct in two places:
+
+- `dispatch_daily_sync` (Beat: 01:00 UTC) - one `worker.sync_connection`
+  per `Connection`, across every tenant. Already retry-safe/idempotent
+  (CLAUDE.md #11), so fanning it out daily needs no new safety net.
+- `dispatch_daily_recommendations` (Beat: 02:00 UTC, an hour after sync -
+  a pragmatic staggering, not a guaranteed happens-before; Celery gives no
+  ordering guarantee between two Beat entries, and a real sync-then-recommend
+  pipeline via a chord/callback is more machinery than a daily cadence
+  needs) - `worker.run_catalog_audit` + `worker.generate_dashboard_narrative`
+  once per tenant that actually has a product, `worker.generate_price_recommendation`
+  per priced offer (an inner join on `Price`), and
+  `worker.generate_listing_publish_recommendation` per offer that already
+  has an `external_id` (already listed on a marketplace).
+
+Deliberately excludes `worker.generate_product_content_recommendation`:
+that's one real LLM call *per product*, and with no AI usage/cost guard
+until Phase 20 ("Billing"), auto-triggering it for every product across
+every tenant, daily, unbounded, is a real cost risk this phase isn't the
+place to accept - a human still clicks "Generate content" per product
+until that guard exists. Every task this scheduler *does* dispatch only
+ever proposes a `Recommendation` (CLAUDE.md #4/#5 approval + audit still
+apply downstream) - the risk being managed here is API spend, not safety.
+
+Verified against the real running stack, not just the mocked-`.delay()`
+unit tests: started a real Postgres/Redis/`uvicorn`/Celery worker
+(`--pool=solo`) against the existing dev database (10 tenants, 7
+connections, 8 products, 7 offers, 7 priced offers, at head migration
+`f5ba47685ba0`), then enqueued both dispatcher tasks through the real
+Redis broker (`app.send_task`, not `.run()`) instead of calling them in
+process. `dispatch_daily_sync` returned `{"connections_synced": 7}` -
+correct for the seeded data - and the worker log showed the real fan-out:
+`worker.sync_connection` tasks actually received and executed by the
+live worker process one at a time (each against a fake store URL,
+correctly finishing with a caught `403 Forbidden` rather than crashing -
+expected with no real credentials in this sandbox, and exactly the
+graceful-partial-failure behavior `cp_sync` was built for back in Phase
+6). `dispatch_daily_recommendations` returned
+`{"tenants_processed": 8, "pricing_checks_queued": 7,
+"listing_checks_queued": 2}` - also matching the real row counts (8
+distinct tenants with a product; 7 priced offers; 2 offers already
+carrying an `external_id`) - and the worker log confirmed the fanned-out
+`worker.run_catalog_audit` / `worker.generate_dashboard_narrative` /
+`worker.generate_price_recommendation` / `worker.generate_listing_publish_recommendation`
+tasks were received by the same live worker. This proves the actual
+thing Phase 15 adds - correct enumeration of real DB rows into real
+Celery messages, picked up by a real worker over the real Redis broker -
+distinct from each downstream agent's own execution, already verified in
+its own phase (12/13/14/11).
+
+Tested: 9 new tests in `apps/worker/tests/test_scheduler_task.py`
+(`monkeypatch`ing each downstream task's `.delay` to record calls without
+touching Redis) - one sync per connection, no connections dispatches
+nothing, one sync per connection across multiple tenants;
+catalog+analytics dispatched only for a tenant with products (skipped for
+one with none), pricing dispatched only for a priced offer, listing
+dispatched only for an offer with an `external_id`, and a dedicated test
+asserting `worker.tasks.scheduler` doesn't even import
+`generate_product_content_recommendation` - bringing `apps/worker` to 43.
+`apps/worker`'s venv rebuilt from scratch and all 43 pass; no other
+package's test count changes since no domain model, migration, or route
+was touched this phase.
