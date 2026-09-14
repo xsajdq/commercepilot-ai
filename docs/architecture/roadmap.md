@@ -27,7 +27,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 10 — Product agent**: structured content generation with
       `UNKNOWN` for missing specs.
 - [x] **Phase 11 — Listing agent** (Allegro publication workflow).
-- [ ] **Phase 12 — Catalog agent** (daily catalog health audit).
+- [x] **Phase 12 — Catalog agent** (daily catalog health audit).
 - [ ] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
 - [ ] **Phase 14 — Competition agent** (manual competitors + API sources).
 - [ ] **Phase 15 — Recommendations** (daily scheduler tying agents together).
@@ -498,3 +498,69 @@ trigger it), bringing it to 92; and 5 new tests for the `cp_sync` status
 mapping fix in `apps/api/tests/test_sync_products.py`. Verified end to
 end against the real running stack exactly as described above, not just
 against `MockConnector` in pytest.
+
+Phase 12 complete: the catalog agent, and the first real use of `AIJob`
+(`packages/domain/cp_domain/ai_job.py`) - scaffolded back in Phase 2,
+never actually used by anything until now.
+
+`cp_ai.agents.catalog_agent.audit_products` is a deterministic
+checklist over a tenant's products (no `AIProvider` call, same reasoning
+as the pricing and listing agents): missing description, missing EAN,
+missing price, priced below cost, missing stock record, out of stock,
+and an `ACTIVE` product with no offers on any connection at all
+("orphaned" - active but not actually listed anywhere). Per
+`docs/architecture/product-vision.md`'s own framing ("18,421 products →
+analysis → 127 problems → 43 recommendations → 17 require approval"),
+**not every problem becomes a `Recommendation`** - a missing price or
+EAN has no safe fix to propose (CLAUDE.md #9: never guess), and a wrong
+price is the pricing agent's own job, not this one's to re-derive. Only
+the orphaned-product case maps to something unambiguous and safe: a new
+builtin tool, `update_product_status` (`MEDIUM` risk, mutates
+`Product.status`), backs a `CATALOG_FIX` recommendation to archive it -
+the first real use of `RecommendationType.CATALOG_FIX`, itself sitting
+unused in the enum since Phase 2. Every other issue type is still
+surfaced (in the `AIJob`'s `output_payload`, and in the `/catalog` UI)
+purely as a finding for a human to read, not something the approval
+pipeline ever sees.
+
+`apps/worker` gained `worker.run_catalog_audit(tenant_id)` - unlike
+every other agent's task, this one operates on a tenant's *entire*
+catalog rather than one product/offer, and is the first task to create
+and update an `AIJob` row (`QUEUED` implicitly skipped straight to
+`RUNNING` on creation, then `SUCCEEDED`/`FAILED`, with `output_payload`
+holding the full structured issue list plus counts). A real exception
+during the scan marks the job `FAILED` with `error_message` set, then
+re-raises so Celery's own failure tracking still sees it - the job row
+exists for human/UI observability, not to swallow bugs. No daily
+schedule triggers this yet - `beat_schedule` is still empty, reserved
+for Phase 15 ("Recommendations - daily scheduler tying agents
+together") exactly as already noted after Phase 9.
+
+`apps/api` gained `POST /catalog/audit` (enqueue) and
+`GET /catalog/audits` (the tenant's past runs, most recent first,
+`output_payload` flattened into a typed response). `apps/web` gained a
+`/catalog` page (a "Run audit" button, a list of past runs with their
+issues) and a fourth Dashboard stat card ("Catalog issues", from the
+most recent run).
+
+Verified against the real running stack, not just `MockConnector`/
+pytest: registered a tenant, ran an audit with zero products, added a
+connection + a manually-created product (missing description/EAN/stock
+by construction) and re-ran it - 3 issues correctly surfaced in the UI
+and the Dashboard's new stat card. Separately, inserted a genuinely
+orphaned `ACTIVE` product directly (no variant/offer at all) and drove
+the full loop through the real HTTP API: audit found it → proposed
+`CATALOG_FIX` → approved it → `Product.status` actually flipped to
+`ARCHIVED` in Postgres → a real `AuditEvent` row landed
+(`update_product_status`, `before: {"status": "active"}`,
+`after: {"status": "archived"}`).
+
+Tested: `packages/ai` gained 18 tests for the catalog agent (audit
+checklist + proposal-building, no DB, bringing it to 51) and 3 for the
+new tool's handler in `apps/api/tests/test_ai_tools.py` (bringing it to
+20); `apps/worker` gained 7 DB-integration tests for the new task
+(zero-products, issues recorded on the `AIJob`, the orphan-product
+proposal, idempotency, tenant isolation, price-below-cost - bringing it
+to 28); `apps/api` gained 4 for the new `/catalog` routes (task
+triggering, listing past runs shaped correctly, tenant isolation -
+bringing it to 99).

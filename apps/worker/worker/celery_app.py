@@ -14,6 +14,7 @@ app = Celery(
         "worker.tasks.pricing",
         "worker.tasks.product_content",
         "worker.tasks.listing",
+        "worker.tasks.catalog",
     ],
 )
 

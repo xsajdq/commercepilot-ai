@@ -16,7 +16,8 @@ import pytest  # noqa: E402
 from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus  # noqa: E402
 from cp_domain.offer import Offer, OfferStatus  # noqa: E402
 from cp_domain.price import Price  # noqa: E402
-from cp_domain.product import Product  # noqa: E402
+from cp_domain.product import Product, ProductStatus  # noqa: E402
+from cp_domain.stock import Stock  # noqa: E402
 from cp_domain.variant import Variant  # noqa: E402
 from cp_shared.crypto import encrypt_credentials  # noqa: E402
 from cp_shared.db import Base  # noqa: E402
@@ -104,11 +105,19 @@ def make_product(
     name: str = "Test product",
     description: str | None = "Old description",
     ean: str | None = None,
+    cost: Decimal | None = None,
+    status: ProductStatus = ProductStatus.DRAFT,
 ) -> uuid.UUID:
     async def _create() -> uuid.UUID:
         async with async_session_factory() as db:
             product = Product(
-                tenant_id=tenant_id, sku=sku, name=name, description=description, ean=ean
+                tenant_id=tenant_id,
+                sku=sku,
+                name=name,
+                description=description,
+                ean=ean,
+                cost=cost,
+                status=status,
             )
             db.add(product)
             await db.commit()
@@ -127,6 +136,8 @@ def make_offer_with_price(
     description: str | None = None,
     external_id: str | None = None,
     status: OfferStatus = OfferStatus.DRAFT,
+    stock_quantity: int | None = None,
+    product_status: ProductStatus = ProductStatus.DRAFT,
 ) -> uuid.UUID:
     async def _create() -> uuid.UUID:
         async with async_session_factory() as db:
@@ -136,6 +147,7 @@ def make_offer_with_price(
                 name="Test product",
                 description=description,
                 cost=cost,
+                status=product_status,
             )
             db.add(product)
             await db.flush()
@@ -153,6 +165,8 @@ def make_offer_with_price(
             await db.flush()
             if price_amount is not None:
                 db.add(Price(tenant_id=tenant_id, offer_id=offer.id, amount=price_amount))
+            if stock_quantity is not None:
+                db.add(Stock(tenant_id=tenant_id, offer_id=offer.id, quantity=stock_quantity))
             await db.commit()
             return offer.id
 

@@ -34,7 +34,7 @@ code carrying the meaning:
 - `409` - a state conflict (duplicate SKU/connection name, or a decision
   attempted on a recommendation that isn't pending)
 
-## Resources (Phase 6-11; auth is Phase 1)
+## Resources (Phase 6-12; auth is Phase 1)
 
 - `/connections` - stores/marketplaces this tenant syncs from.
   `POST /connections/{id}/sync` enqueues `worker.sync_connection` and
@@ -65,6 +65,14 @@ code carrying the meaning:
   since *that* tool's whole point is a real network call to a
   marketplace, which does need to happen in the Celery worker, not the
   request handler.
+- `/catalog` - the catalog agent. `POST /catalog/audit` enqueues
+  `worker.run_catalog_audit`, which scans the *whole tenant's* catalog
+  (not one product/offer) and records the run as an `AIJob`.
+  `GET /catalog/audits` lists past runs, most recent first, with their
+  full issue list. Most issues found are informational only (a missing
+  price/EAN has no safe fix to propose); only an `ACTIVE` product with no
+  offers anywhere becomes a real `catalog_fix` recommendation
+  (archiving it) - see the roadmap's Phase 12 writeup for why.
 
 No pagination yet - list endpoints cap at a fixed limit (200). Real
 pagination is tracked as hardening work, not needed while there's no

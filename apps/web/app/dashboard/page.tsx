@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { listConnections, listProducts, listRecommendations } from "@/lib/api";
+import { listCatalogAudits, listConnections, listProducts, listRecommendations } from "@/lib/api";
 import { getAccessToken } from "@/lib/session";
 import AppShell from "@/components/AppShell";
 
@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const [connectionCount, setConnectionCount] = useState<number | null>(null);
   const [productCount, setProductCount] = useState<number | null>(null);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [issueCount, setIssueCount] = useState<number | null>(null);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -18,6 +19,7 @@ export default function DashboardPage() {
     listConnections(token).then((c) => setConnectionCount(c.length));
     listProducts(token).then((p) => setProductCount(p.length));
     listRecommendations(token, "pending_approval").then((r) => setPendingCount(r.length));
+    listCatalogAudits(token).then((audits) => setIssueCount(audits[0]?.issues.length ?? 0));
   }, []);
 
   return (
@@ -25,7 +27,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-8">
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             href="/connections"
             label="Connections"
@@ -37,6 +39,13 @@ export default function DashboardPage() {
             label="Products"
             value={productCount}
             hint="Across all connections"
+          />
+          <StatCard
+            href="/catalog"
+            label="Catalog issues"
+            value={issueCount}
+            hint="From the last audit"
+            highlight={Boolean(issueCount)}
           />
           <StatCard
             href="/recommendations"
@@ -61,6 +70,13 @@ export default function DashboardPage() {
             <li>
               Click &quot;Generate pricing&quot; or &quot;Generate content&quot; on a product to
               queue an agent - it proposes a change, never applies it directly.
+            </li>
+            <li>
+              Run a{" "}
+              <Link href="/catalog" className="font-medium text-gray-900 underline">
+                catalog audit
+              </Link>{" "}
+              to find structural problems (missing price/stock, out of stock, priced below cost).
             </li>
             <li>
               Review and approve or reject it on the{" "}

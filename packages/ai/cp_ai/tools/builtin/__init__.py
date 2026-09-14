@@ -3,6 +3,7 @@ from cp_ai.tools.builtin.product_tools import (
     request_listing_publish_tool,
     update_price_tool,
     update_product_content_tool,
+    update_product_status_tool,
 )
 from cp_ai.tools.registry import ToolRegistry
 
@@ -14,6 +15,7 @@ def register_builtin_tools(registry: ToolRegistry) -> None:
     registry.register(update_price_tool())
     registry.register(update_product_content_tool())
     registry.register(request_listing_publish_tool())
+    registry.register(update_product_status_tool())
 
 
 __all__ = [
@@ -22,4 +24,5 @@ __all__ = [
     "request_listing_publish_tool",
     "update_price_tool",
     "update_product_content_tool",
+    "update_product_status_tool",
 ]

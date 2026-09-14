@@ -8,18 +8,20 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 11** (listing
+what's next. This repo is currently at the end of **Phase 12** (catalog
 agent): registration, login, tenant-scoped JWT sessions, role-based
 membership, the full e-commerce domain model, real WooCommerce + Allegro
 connectors, a sync engine, the AI tool system + approval engine
 (`Recommendation -> PendingApproval -> Approved/Rejected -> Executing ->
-Success/Failed`), a deterministic pricing engine, and three working
-agents (pricing, product content, listing publication) are all live -
-plus a minimal web UI (connections, products, recommendations/approvals)
-wired to a real HTTP API on top of all of it, so the whole pipeline is
-clickable end to end, not just testable from the CLI. The listing agent
-is also the first AI-approved action that reaches a real marketplace (via
-a typed connector, CLAUDE.md #2) rather than only our own database.
+Success/Failed`), a deterministic pricing engine, and four working agents
+(pricing, product content, listing publication, catalog health) are all
+live - plus a minimal web UI (connections, products, catalog,
+recommendations/approvals) wired to a real HTTP API on top of all of it,
+so the whole pipeline is clickable end to end, not just testable from the
+CLI. The listing agent was the first AI-approved action to reach a real
+marketplace (via a typed connector, CLAUDE.md #2) rather than only our
+own database; the catalog agent is the first to actually use the
+Phase-2-scaffolded `AIJob` table.
 
 ## Repository layout
 
@@ -74,7 +76,7 @@ worker, a Celery beat scheduler, Postgres, and Redis.
 
 - Frontend: http://localhost:3000 (or http://commercepilot.localhost via
   Traefik) - `/register`, `/login`, `/dashboard`, `/connections`,
-  `/products`, `/recommendations`
+  `/products`, `/catalog`, `/recommendations`
 - API: http://localhost:8000/docs (or http://api.commercepilot.localhost)
 - API health: http://localhost:8000/health and `/health/ready` (checks
   Postgres + Redis connectivity)

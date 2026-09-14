@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import connections, health, products, recommendations
+from app.api.routes import catalog, connections, health, products, recommendations
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
 
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(products.router)
     app.include_router(products.offers_router)
     app.include_router(recommendations.router)
+    app.include_router(catalog.router)
 
     return app
 

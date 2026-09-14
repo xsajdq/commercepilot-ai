@@ -1,6 +1,8 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
+from cp_domain.ai_job import AIJob, AIJobStatus
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.recommendation import RecommendationType, RiskLevel
 from cp_policies import propose_recommendation, submit_for_approval
@@ -522,3 +524,79 @@ class TestRecommendationsRoutes:
 
         assert result.status_code == 200, result.text
         assert sent_tasks == []
+
+
+class TestCatalogRoutes:
+    async def test_trigger_audit_returns_a_task_id(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.post("/catalog/audit", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        assert result.json()["task_id"]
+
+    async def test_list_audits_returns_completed_runs(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        job = AIJob(
+            tenant_id=tenant_id,
+            agent_type="catalog",
+            status=AIJobStatus.SUCCEEDED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            output_payload={
+                "products_scanned": 3,
+                "recommendations_proposed": 1,
+                "issues": [
+                    {
+                        "type": "missing_price",
+                        "severity": "high",
+                        "entity_type": "offer",
+                        "entity_id": str(uuid.uuid4()),
+                        "sku": "SKU-1",
+                        "message": "SKU-1 has an offer with no price set",
+                    }
+                ],
+            },
+        )
+        db_session.add(job)
+        await db_session.commit()
+
+        result = await client.get("/catalog/audits", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        [audit] = result.json()
+        assert audit["status"] == "succeeded"
+        assert audit["products_scanned"] == 3
+        assert audit["recommendations_proposed"] == 1
+        assert len(audit["issues"]) == 1
+        assert audit["issues"][0]["type"] == "missing_price"
+
+    async def test_list_audits_is_empty_with_no_runs_yet(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.get("/catalog/audits", headers=_auth(token))
+
+        assert result.status_code == 200
+        assert result.json() == []
+
+    async def test_tenant_isolation(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        alice_token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(alice_token))
+        alice_tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        db_session.add(
+            AIJob(tenant_id=alice_tenant_id, agent_type="catalog", status=AIJobStatus.SUCCEEDED)
+        )
+        await db_session.commit()
+
+        bob_token = await _register(client, BOB)
+        bob_list = await client.get("/catalog/audits", headers=_auth(bob_token))
+
+        assert bob_list.json() == []

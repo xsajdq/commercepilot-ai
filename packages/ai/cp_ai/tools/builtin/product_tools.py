@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
-from cp_domain.product import Product
+from cp_domain.product import Product, ProductStatus
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -220,4 +220,47 @@ def request_listing_publish_tool() -> ToolSchema:
         args_model=RequestListingPublishArgs,
         permission=ToolPermission(risk_level=ToolRiskLevel.HIGH, mutates=True),
         handler=request_listing_publish_handler,
+    )
+
+
+class UpdateProductStatusArgs(BaseModel):
+    sku: str
+    new_status: ProductStatus
+
+
+async def update_product_status_handler(
+    args: UpdateProductStatusArgs, context: ToolContext, db: AsyncSession
+) -> ToolResult:
+    """Changes a product's catalog status (draft/active/archived) -
+    visibility/lifecycle bookkeeping, never a financial or content
+    change. Backs the catalog agent's one actionable fix today: an
+    `ACTIVE` product with no offers on any connection (never actually
+    listed anywhere) gets proposed for archiving, since an active
+    product nobody can buy is a data-hygiene problem, not something to
+    guess a fix for."""
+    product = await db.scalar(
+        select(Product).where(Product.tenant_id == context.tenant_id, Product.sku == args.sku)
+    )
+    if product is None:
+        return ToolResult.fail(f"No product with sku {args.sku!r}")
+
+    before = {"status": product.status.value}
+    product.status = args.new_status
+    after = {"status": product.status.value}
+
+    return ToolResult.ok(
+        after, entity_type="product", entity_id=product.id, before=before, after=after
+    )
+
+
+def update_product_status_tool() -> ToolSchema:
+    """Changes a product's catalog status. MEDIUM risk, mutates - a
+    wrong archive is annoying but reversible and non-financial, the same
+    tier as `update_product_content`."""
+    return ToolSchema(
+        name="update_product_status",
+        description="Change a product's catalog status (draft/active/archived).",
+        args_model=UpdateProductStatusArgs,
+        permission=ToolPermission(risk_level=ToolRiskLevel.MEDIUM, mutates=True),
+        handler=update_product_status_handler,
     )

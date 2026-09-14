@@ -89,6 +89,12 @@ them):
   enqueued by apps/api's approve route only after this tool's handler
   has already succeeded - see the roadmap's Phase 11 writeup for the
   full reasoning.
+- **`update_product_status`** (`MEDIUM` risk, mutates) - Phase 12's
+  tool, changing a product's catalog status (draft/active/archived).
+  Backs the catalog agent's one actionable fix: an `ACTIVE` product with
+  no offers on any connection gets proposed for archiving. Same risk
+  tier as `update_product_content` - a wrong archive is annoying but
+  reversible and non-financial.
 
 ## `cp_ai.providers`
 
@@ -193,6 +199,35 @@ like the other two agents. What's different about this one is what
 happens *after* approval - see `request_listing_publish` above and the
 roadmap's Phase 11 writeup: this is the first agent whose approved
 action is meant to reach a real marketplace, not just our own DB.
+
+## `cp_ai.agents.catalog_agent`
+
+Phase 12's catalog agent, and unlike every earlier agent it doesn't
+operate on one product/offer - `audit_products(products)` scans a
+tenant's *entire* catalog and returns a `CatalogAuditReport`: a deterministic
+checklist (no `AIProvider` call, same reasoning as pricing/listing) for
+missing description, missing EAN, missing price, priced below cost,
+missing stock record, out of stock, and an `ACTIVE` product with no
+offers on any connection ("orphaned"). Every finding is a `CatalogIssue`
+- a plain fact, not a proposal.
+
+`build_catalog_fix_proposals(report)` is the separate, deliberately
+narrow step that decides which of those findings get turned into an
+actual `Recommendation`: today, only `ORPHAN_PRODUCT` (via
+`update_product_status`, archiving it). Every other issue type has no
+safe automated fix - a missing price/EAN can't be invented (CLAUDE.md
+#9) and a wrong price is the pricing agent's own job, not this one's to
+re-derive - so it stays a plain finding, matching
+`docs/architecture/product-vision.md`'s own framing that not every
+"problem" becomes a "recommendation."
+
+`apps/worker`'s `run_catalog_audit` Celery task runs both functions
+against a real tenant's products (eager-loaded via `selectinload`) and
+is the first task in this codebase to actually use the `AIJob` table
+(`packages/domain/cp_domain/ai_job.py` - scaffolded in Phase 2, unused
+until now): one row per run, `output_payload` holding the full
+structured issue list, `QUEUED`/`RUNNING`/`SUCCEEDED`/`FAILED` tracking
+the run itself independently of any recommendations it proposed.
 
 Run this package's own tests (registry + executor mechanics and both
 agents' decision logic against a mocked `AsyncSession`/`FakeAIProvider`,

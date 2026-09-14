@@ -171,6 +171,29 @@ export type RecommendationOut = {
 
 export type TaskTriggeredResponse = { task_id: string };
 
+export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export type CatalogIssueOut = {
+  type: string;
+  severity: "low" | "medium" | "high";
+  entity_type: string;
+  entity_id: string;
+  sku: string;
+  message: string;
+};
+
+export type CatalogAuditOut = {
+  id: string;
+  status: AIJobStatus;
+  products_scanned: number | null;
+  recommendations_proposed: number | null;
+  issues: CatalogIssueOut[];
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
 export function listConnections(token: string): Promise<ConnectionOut[]> {
   return request("/connections", { headers: authHeaders(token) });
 }
@@ -277,4 +300,12 @@ export function rejectRecommendation(
     headers: authHeaders(token),
     body: JSON.stringify({ decision_reason: decisionReason ?? null }),
   });
+}
+
+export function triggerCatalogAudit(token: string): Promise<TaskTriggeredResponse> {
+  return request("/catalog/audit", { method: "POST", headers: authHeaders(token) });
+}
+
+export function listCatalogAudits(token: string): Promise<CatalogAuditOut[]> {
+  return request("/catalog/audits", { headers: authHeaders(token) });
 }
