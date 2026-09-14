@@ -309,3 +309,44 @@ export function triggerCatalogAudit(token: string): Promise<TaskTriggeredRespons
 export function listCatalogAudits(token: string): Promise<CatalogAuditOut[]> {
   return request("/catalog/audits", { headers: authHeaders(token) });
 }
+
+export type DashboardMetricsOut = {
+  total_products: number;
+  products_by_status: Record<string, number>;
+  total_offers: number;
+  offers_missing_price: number;
+  out_of_stock_offers: number;
+  total_catalog_value: string;
+  average_margin_rate: string | null;
+  recommendations_by_status: Record<string, number>;
+  recommendations_by_type: Record<string, number>;
+  latest_catalog_issue_count: number | null;
+};
+
+export type DashboardNarrativeOut = {
+  summary: string;
+  highlights: string[];
+};
+
+export type AnalyticsReportOut = {
+  id: string;
+  status: AIJobStatus;
+  metrics: DashboardMetricsOut | null;
+  narrative: DashboardNarrativeOut | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export function getDashboardMetrics(token: string): Promise<DashboardMetricsOut> {
+  return request("/analytics/dashboard", { headers: authHeaders(token) });
+}
+
+export function triggerDashboardNarrative(token: string): Promise<TaskTriggeredResponse> {
+  return request("/analytics/narrative", { method: "POST", headers: authHeaders(token) });
+}
+
+export function listDashboardNarratives(token: string): Promise<AnalyticsReportOut[]> {
+  return request("/analytics/narratives", { headers: authHeaders(token) });
+}

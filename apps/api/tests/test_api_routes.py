@@ -600,3 +600,120 @@ class TestCatalogRoutes:
         bob_list = await client.get("/catalog/audits", headers=_auth(bob_token))
 
         assert bob_list.json() == []
+
+
+class TestAnalyticsRoutes:
+    async def test_dashboard_is_zeroed_for_a_fresh_tenant(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.get("/analytics/dashboard", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        body = result.json()
+        assert body["total_products"] == 0
+        assert body["total_offers"] == 0
+        assert body["total_catalog_value"] == "0"
+        assert body["average_margin_rate"] is None
+        assert body["recommendations_by_status"] == {}
+
+    async def test_dashboard_reflects_a_real_product(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+        connection = await client.post(
+            "/connections",
+            json={"platform": "woocommerce", "name": "My Store", "credentials": {}},
+            headers=_auth(token),
+        )
+        await client.post(
+            "/products",
+            json={
+                "connection_id": connection.json()["id"],
+                "sku": "SKU-1",
+                "name": "Thing",
+                "cost": "50.00",
+                "price_amount": "100.00",
+                "stock_quantity": 4,
+            },
+            headers=_auth(token),
+        )
+
+        result = await client.get("/analytics/dashboard", headers=_auth(token))
+
+        body = result.json()
+        assert body["total_products"] == 1
+        assert body["total_offers"] == 1
+        assert body["total_catalog_value"] == "400.00"
+        assert body["average_margin_rate"] == "0.5"
+
+    async def test_trigger_narrative_returns_a_task_id(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.post("/analytics/narrative", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        assert result.json()["task_id"]
+
+    async def test_list_narratives_returns_completed_runs(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        job = AIJob(
+            tenant_id=tenant_id,
+            agent_type="analytics",
+            status=AIJobStatus.SUCCEEDED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            output_payload={
+                "metrics": {
+                    "total_products": 3,
+                    "products_by_status": {"active": 3},
+                    "total_offers": 3,
+                    "offers_missing_price": 0,
+                    "out_of_stock_offers": 0,
+                    "total_catalog_value": "150.00",
+                    "average_margin_rate": "0.4",
+                    "recommendations_by_status": {},
+                    "recommendations_by_type": {},
+                    "latest_catalog_issue_count": None,
+                },
+                "narrative": {
+                    "summary": "Store is healthy.",
+                    "highlights": ["Everything looks fine"],
+                },
+            },
+        )
+        db_session.add(job)
+        await db_session.commit()
+
+        result = await client.get("/analytics/narratives", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        [report] = result.json()
+        assert report["status"] == "succeeded"
+        assert report["metrics"]["total_products"] == 3
+        assert report["narrative"]["summary"] == "Store is healthy."
+
+    async def test_list_narratives_is_empty_with_no_runs_yet(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.get("/analytics/narratives", headers=_auth(token))
+
+        assert result.status_code == 200
+        assert result.json() == []
+
+    async def test_tenant_isolation(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        alice_token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(alice_token))
+        alice_tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        db_session.add(
+            AIJob(tenant_id=alice_tenant_id, agent_type="analytics", status=AIJobStatus.SUCCEEDED)
+        )
+        await db_session.commit()
+
+        bob_token = await _register(client, BOB)
+        bob_list = await client.get("/analytics/narratives", headers=_auth(bob_token))
+
+        assert bob_list.json() == []

@@ -8,20 +8,21 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 12** (catalog
+what's next. This repo is currently at the end of **Phase 13** (analytics
 agent): registration, login, tenant-scoped JWT sessions, role-based
 membership, the full e-commerce domain model, real WooCommerce + Allegro
 connectors, a sync engine, the AI tool system + approval engine
 (`Recommendation -> PendingApproval -> Approved/Rejected -> Executing ->
-Success/Failed`), a deterministic pricing engine, and four working agents
-(pricing, product content, listing publication, catalog health) are all
-live - plus a minimal web UI (connections, products, catalog,
-recommendations/approvals) wired to a real HTTP API on top of all of it,
-so the whole pipeline is clickable end to end, not just testable from the
-CLI. The listing agent was the first AI-approved action to reach a real
-marketplace (via a typed connector, CLAUDE.md #2) rather than only our
-own database; the catalog agent is the first to actually use the
-Phase-2-scaffolded `AIJob` table.
+Success/Failed`), a deterministic pricing engine, and five working agents
+(pricing, product content, listing publication, catalog health,
+analytics) are all live - plus a minimal web UI (connections, products,
+catalog, recommendations/approvals, a live analytics dashboard) wired to
+a real HTTP API on top of all of it, so the whole pipeline is clickable
+end to end, not just testable from the CLI. The listing agent was the
+first AI-approved action to reach a real marketplace (via a typed
+connector, CLAUDE.md #2) rather than only our own database; the catalog
+and analytics agents are the two real uses of the Phase-2-scaffolded
+`AIJob` table.
 
 ## Repository layout
 
@@ -36,7 +37,8 @@ packages/
   connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro
   sync/       cp_sync - the sync engine (retry/backoff, idempotent upsert)
   pricing/    cp_pricing - deterministic pricing engine (no AI, no deps)
-  ai/         cp_ai - tool system, AIProvider, pricing + product agents
+  analytics/  cp_analytics - deterministic dashboard metrics (no AI, no deps)
+  ai/         cp_ai - tool system, AIProvider, all five agents
   policies/   cp_policies - the approval engine
 infrastructure/
   docker/ hetzner/ traefik/ backups/

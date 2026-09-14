@@ -11,12 +11,15 @@ httpx==0.28.1
 sentry-sdk[celery]==2.19.2
 
 # Local packages (see packages/shared, packages/domain, packages/connectors,
-# packages/sync, packages/pricing, packages/ai, packages/policies) -
-# install order matters: each depends on the ones above it.
+# packages/sync, packages/pricing, packages/analytics, packages/ai,
+# packages/policies) - install order matters: each depends on the ones
+# above it (cp-ai declares cp-pricing/cp-analytics as dependencies, so
+# both must already be resolvable before it installs).
 -e ../../packages/shared
 -e ../../packages/domain
 -e ../../packages/connectors
 -e ../../packages/sync
 -e ../../packages/pricing
+-e ../../packages/analytics
 -e ../../packages/ai
 -e ../../packages/policies

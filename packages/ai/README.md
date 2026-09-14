@@ -229,6 +229,33 @@ until now): one row per run, `output_payload` holding the full
 structured issue list, `QUEUED`/`RUNNING`/`SUCCEEDED`/`FAILED` tracking
 the run itself independently of any recommendations it proposed.
 
+## `cp_ai.agents.analytics_agent`
+
+Phase 13's analytics agent, split into two deliberately separate layers
+per its own roadmap name - "dashboard first, AI narrative second." The
+dashboard half, `cp_analytics.compute_dashboard_metrics` (a new sibling
+package, `packages/analytics`, with the exact same zero-dependency
+philosophy as `cp_pricing`), is pure aggregation: product/offer counts,
+total catalog value, average margin rate. This module is the second
+half - `build_dashboard_narrative(*, provider, metrics)` turns a
+`DashboardMetrics` into a short prose `summary` plus `highlights` via
+`AIProvider.generate_structured`.
+
+Unlike the product agent (Phase 10), there's no CLAUDE.md #18
+hallucination-override step here: every number handed to the model is
+our own deterministic computation, never untrusted external content
+(a product description, a review, ...) an attacker could steer - there's
+nothing here for the model to be tricked into inventing *from*. Also
+unlike every proposal-building agent in this file, this one is entirely
+read-only: no tool call, no `Recommendation` - it exists purely to
+narrate, not to act.
+
+`apps/worker`'s `generate_dashboard_narrative` Celery task computes the
+same metrics `apps/api`'s `GET /analytics/dashboard` computes live and
+synchronously, generates the narrative, and stores both together as an
+`AIJob` (`agent_type="analytics"` - the second real use of that table,
+alongside Phase 12's catalog agent).
+
 Run this package's own tests (registry + executor mechanics and both
 agents' decision logic against a mocked `AsyncSession`/`FakeAIProvider`,
 plus the `AnthropicProvider` against `httpx.MockTransport` - no real DB,

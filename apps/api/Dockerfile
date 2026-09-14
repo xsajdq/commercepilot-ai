@@ -18,6 +18,7 @@ COPY apps/api/requirements.txt apps/api/requirements.txt
 COPY packages/shared packages/shared
 COPY packages/domain packages/domain
 COPY packages/pricing packages/pricing
+COPY packages/analytics packages/analytics
 COPY packages/ai packages/ai
 COPY packages/policies packages/policies
 # requirements.txt's `-e ../../packages/...` lines are resolved relative

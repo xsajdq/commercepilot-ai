@@ -23,12 +23,14 @@ sentry-sdk[fastapi]==2.19.2
 celery[redis]==5.4.0
 
 # Local packages (see packages/shared, packages/domain, packages/pricing,
-# packages/ai, packages/policies) - install order matters: each depends
-# on the ones above it. apps/api needs the AI/approval packages for real
-# now (the recommendations API resolves and runs approved tool calls),
-# not just for its test suite.
+# packages/analytics, packages/ai, packages/policies) - install order
+# matters: each depends on the ones above it. apps/api needs the
+# AI/approval packages for real now (the recommendations API resolves
+# and runs approved tool calls), not just for its test suite; it also
+# computes the live analytics dashboard directly via cp_analytics.
 -e ../../packages/shared
 -e ../../packages/domain
 -e ../../packages/pricing
+-e ../../packages/analytics
 -e ../../packages/ai
 -e ../../packages/policies

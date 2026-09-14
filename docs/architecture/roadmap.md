@@ -28,7 +28,7 @@ testable and merged before the next begins — never one giant change.
       `UNKNOWN` for missing specs.
 - [x] **Phase 11 — Listing agent** (Allegro publication workflow).
 - [x] **Phase 12 — Catalog agent** (daily catalog health audit).
-- [ ] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
+- [x] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
 - [ ] **Phase 14 — Competition agent** (manual competitors + API sources).
 - [ ] **Phase 15 — Recommendations** (daily scheduler tying agents together).
 - [ ] **Phase 16 — Dashboard polish**.
@@ -564,3 +564,81 @@ proposal, idempotency, tenant isolation, price-below-cost - bringing it
 to 28); `apps/api` gained 4 for the new `/catalog` routes (task
 triggering, listing past runs shaped correctly, tenant isolation -
 bringing it to 99).
+
+Between Phase 12 and Phase 13, a real bug was reported against a live
+WooCommerce store: syncing only ever produced 1 product locally no
+matter how many the store actually had. Root cause: WooCommerce (like
+other platforms) allows a product with no SKU at all - common in real,
+especially older or imported, catalogs - and `cp_sync.products
+._upsert_product` matches `Product`/`Variant` by `(tenant_id, sku)`, so
+every skuless product fell back to `sku=""` and collapsed onto the very
+first one synced, each later one silently overwriting the last.
+Reproduced directly before fixing (3 `MockConnector` products with
+`sku=""` left exactly 1 `Product` row), then fixed with
+`_effective_sku()` - a connector-scoped synthetic sku
+(`noSKU-<connection>-<external_id>`) for these, keeping each one
+distinct without inventing a real spec value (CLAUDE.md #9 is about
+customer-facing data, not this package's own internal matching key). 4
+new tests in `apps/api/tests/test_sync_products.py`.
+
+Phase 13 complete: the analytics agent, in two deliberately separate
+layers per its own name - "dashboard first, AI narrative second."
+
+**Dashboard (deterministic):** new `packages/analytics` (`cp_analytics`)
+mirrors `cp_pricing`'s philosophy exactly - zero dependencies, not even
+on `cp_domain`, taking plain inputs (`ProductMetricsInput`/
+`OfferMetricsInput`) the caller extracts from real rows.
+`compute_dashboard_metrics` is pure aggregation: product counts by
+status, total/missing-price offer counts, out-of-stock count,
+`total_catalog_value` (sum of `price * stock`, only where both are
+known), `average_margin_rate` (mean of `(price - cost) / price` across
+offers where both are known - `None`, not `0`, when nothing qualifies,
+since `0` would misleadingly read as "no margin" rather than "no
+data"), plus pass-through recommendation/catalog-issue counts. `apps/api`
+gained `GET /analytics/dashboard` - live, synchronous, computed fresh on
+every request from a handful of fast SELECTs (CLAUDE.md #13 doesn't
+apply to a quick aggregate query, only to genuinely long-running work).
+
+**AI narrative (the layer on top):** `cp_ai.agents.analytics_agent
+.build_dashboard_narrative` turns a `DashboardMetrics` into a short
+prose summary via `AIProvider.generate_structured`. Unlike the product
+agent (Phase 10), it needs no CLAUDE.md #18 hallucination-override step
+- every number it's given is our own deterministic computation, not
+untrusted external content an attacker could steer; there's nothing
+here for a model to be tricked into inventing *from*. Read-only
+throughout: no tool call, no `Recommendation`, just narration.
+`apps/worker` gained `worker.generate_dashboard_narrative`, the second
+real use of `AIJob` (after Phase 12's catalog agent, `agent_type=
+"analytics"`) - it computes the same metrics `GET /analytics/dashboard`
+would, generates the narrative, and stores both together in
+`output_payload`. `apps/api` gained `POST /analytics/narrative`
+(enqueue - this is the part that makes a slow external LLM call, so
+unlike the dashboard read it does need Celery) and
+`GET /analytics/narratives` (past runs, most recent first).
+
+Verified against the real running stack: registered a tenant, hit
+`GET /analytics/dashboard` with zero products (all zeros, `null`
+margin), added a connection + a product (cost 40, price 100, stock 10)
+and re-checked it - `total_catalog_value: "1000.00"`,
+`average_margin_rate: "0.6"`, both correct. Triggered the narrative
+task with no `ANTHROPIC_API_KEY` configured in this sandboxed
+environment (expected here - real credentials aren't available) and
+confirmed it fails exactly as designed: the `AIJob` lands `FAILED` with
+`error_message: "'ANTHROPIC_API_KEY'"`, the worker doesn't crash, and
+the frontend's Dashboard page degrades gracefully (shows "no insight
+generated yet" rather than erroring) since `narrative` is `null` on a
+failed job. The Dashboard page itself now drives its stat cards from
+one `GET /analytics/dashboard` call instead of three separate list
+endpoints, plus two new cards (catalog value, average margin) and an
+"AI insight" panel with a "Generate insight" button.
+
+Tested: `packages/analytics`'s own 9 tests (pure math, no DB, new CI
+job - `analytics`, plus added to the centralized `packages` lint job);
+`packages/ai` gained 3 tests for the narrative agent (bringing it to
+54); `apps/worker` gained 4 DB-integration tests for the new task
+(fresh-tenant zeros, real product data reflected, tenant isolation, a
+provider failure correctly marking the job `FAILED` and still raising -
+bringing it to 32); `apps/api` gained 6 for the new `/analytics` routes
+(live dashboard math against a real product, task triggering, listing
+past runs, tenant isolation - bringing it to 109). All packages'
+venvs rebuilt from scratch and all still pass.

@@ -1,3 +1,4 @@
+from cp_ai.agents.analytics_agent import DashboardNarrative, build_dashboard_narrative
 from cp_ai.agents.catalog_agent import (
     CatalogAuditReport,
     CatalogFixProposal,
@@ -20,6 +21,7 @@ __all__ = [
     "CatalogFixProposal",
     "CatalogIssue",
     "CatalogIssueType",
+    "DashboardNarrative",
     "IssueSeverity",
     "ListingPublishProposal",
     "PricingProposal",
@@ -27,6 +29,7 @@ __all__ = [
     "ProductContentProposal",
     "audit_products",
     "build_catalog_fix_proposals",
+    "build_dashboard_narrative",
     "build_listing_publish_proposal",
     "build_pricing_proposal",
     "build_product_content_proposal",

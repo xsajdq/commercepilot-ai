@@ -34,7 +34,7 @@ code carrying the meaning:
 - `409` - a state conflict (duplicate SKU/connection name, or a decision
   attempted on a recommendation that isn't pending)
 
-## Resources (Phase 6-12; auth is Phase 1)
+## Resources (Phase 6-13; auth is Phase 1)
 
 - `/connections` - stores/marketplaces this tenant syncs from.
   `POST /connections/{id}/sync` enqueues `worker.sync_connection` and
@@ -73,6 +73,14 @@ code carrying the meaning:
   price/EAN has no safe fix to propose); only an `ACTIVE` product with no
   offers anywhere becomes a real `catalog_fix` recommendation
   (archiving it) - see the roadmap's Phase 12 writeup for why.
+- `/analytics` - the analytics agent. `GET /analytics/dashboard` is
+  synchronous, not enqueued - it's a handful of fast aggregate queries
+  (CLAUDE.md #13 doesn't apply to a quick read), always fresh.
+  `POST /analytics/narrative` enqueues `worker.generate_dashboard_narrative`
+  (this one does need Celery - it makes a real LLM call) and
+  `GET /analytics/narratives` lists past runs (an `AIJob`, same as
+  `/catalog/audits`), each with the exact metrics it narrated alongside
+  the generated text.
 
 No pagination yet - list endpoints cap at a fixed limit (200). Real
 pagination is tracked as hardening work, not needed while there's no
