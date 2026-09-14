@@ -10,7 +10,7 @@ import {
   Wallet,
   Percent,
   Sparkles,
-  ArrowRight,
+  ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +25,14 @@ import {
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/session";
 import AppShell from "@/components/AppShell";
+
+const TINTS = {
+  brand: "bg-brand-50 text-brand-600",
+  sky: "bg-sky-50 text-sky-600",
+  emerald: "bg-emerald-50 text-emerald-600",
+  teal: "bg-teal-50 text-teal-600",
+  amber: "bg-amber-100 text-amber-700",
+} as const;
 
 export default function DashboardPage() {
   const [connectionCount, setConnectionCount] = useState<number | null>(null);
@@ -68,8 +76,8 @@ export default function DashboardPage() {
     <AppShell>
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Overview</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Overview</h1>
+          <p className="mt-1 text-sm text-slate-500">
             A snapshot of your catalog, pricing, and what still needs your approval.
           </p>
         </div>
@@ -78,6 +86,7 @@ export default function DashboardPage() {
           <StatCard
             href="/connections"
             icon={Plug}
+            tint="brand"
             label="Connections"
             value={connectionCount}
             hint="Stores syncing products"
@@ -85,6 +94,7 @@ export default function DashboardPage() {
           <StatCard
             href="/products"
             icon={Package}
+            tint="sky"
             label="Products"
             value={metrics?.total_products ?? null}
             hint="Across all connections"
@@ -92,6 +102,7 @@ export default function DashboardPage() {
           <StatCard
             href="/catalog"
             icon={AlertTriangle}
+            tint="amber"
             label="Catalog issues"
             value={metrics ? issueCount : null}
             hint="From the last audit"
@@ -100,6 +111,7 @@ export default function DashboardPage() {
           <StatCard
             href="/recommendations"
             icon={ListChecks}
+            tint="amber"
             label="Pending approvals"
             value={metrics ? pendingCount : null}
             hint="Waiting on you"
@@ -108,6 +120,7 @@ export default function DashboardPage() {
           <StatCard
             href="/products"
             icon={Wallet}
+            tint="emerald"
             label="Catalog value"
             value={metrics ? `${metrics.total_catalog_value} PLN` : null}
             hint="Price × stock, where known"
@@ -115,6 +128,7 @@ export default function DashboardPage() {
           <StatCard
             href="/products"
             icon={Percent}
+            tint="teal"
             label="Avg. margin"
             value={
               metrics?.average_margin_rate != null
@@ -125,33 +139,32 @@ export default function DashboardPage() {
           />
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+        <div className="card relative overflow-hidden p-6">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-brand-100 blur-2xl" />
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-glow">
                 <Sparkles className="h-4 w-4" />
               </div>
-              <h2 className="text-base font-semibold text-gray-900">AI insight</h2>
+              <h2 className="text-base font-semibold text-slate-900">AI insight</h2>
             </div>
-            <button
-              onClick={handleGenerateInsight}
-              disabled={generating}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-            >
+            <button onClick={handleGenerateInsight} disabled={generating} className="btn-secondary">
               {generating ? "Queuing…" : "Generate insight"}
             </button>
           </div>
-          {insightMessage && <p className="mt-3 text-sm text-gray-600">{insightMessage}</p>}
+          {insightMessage && (
+            <p className="relative mt-3 text-sm text-slate-600">{insightMessage}</p>
+          )}
           {latestNarrative?.narrative ? (
-            <div className="mt-4">
-              <p className="text-sm leading-relaxed text-gray-800">
+            <div className="relative mt-4">
+              <p className="text-sm leading-relaxed text-slate-700">
                 {latestNarrative.narrative.summary}
               </p>
               {latestNarrative.narrative.highlights.length > 0 && (
                 <ul className="mt-3 space-y-1.5">
                   {latestNarrative.narrative.highlights.map((h, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-gray-600">
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+                    <li key={i} className="flex gap-2 text-sm text-slate-600">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-400" />
                       {h}
                     </li>
                   ))}
@@ -159,41 +172,36 @@ export default function DashboardPage() {
               )}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-gray-500">
+            <p className="relative mt-4 text-sm text-slate-500">
               No insight generated yet - click &quot;Generate insight&quot; for a short AI summary
               of the metrics above.
             </p>
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900">Getting started</h2>
+        <div className="card p-6">
+          <h2 className="text-base font-semibold text-slate-900">Getting started</h2>
           <ol className="mt-4 space-y-3">
             <GettingStartedStep n={1}>
-              Add a <Link href="/connections" className="font-medium text-gray-900 underline underline-offset-2">connection</Link> (a store or marketplace account).
+              Add a <Link href="/connections" className="link-accent">connection</Link> (a store or
+              marketplace account).
             </GettingStartedStep>
             <GettingStartedStep n={2}>
-              Add or sync{" "}
-              <Link href="/products" className="font-medium text-gray-900 underline underline-offset-2">products</Link>{" "}
-              - give one a cost to enable pricing recommendations.
+              Add or sync <Link href="/products" className="link-accent">products</Link> - give one
+              a cost to enable pricing recommendations.
             </GettingStartedStep>
             <GettingStartedStep n={3}>
               Click &quot;Generate pricing&quot; or &quot;Generate content&quot; on a product to
               queue an agent - it proposes a change, never applies it directly.
             </GettingStartedStep>
             <GettingStartedStep n={4}>
-              Run a{" "}
-              <Link href="/catalog" className="font-medium text-gray-900 underline underline-offset-2">
-                catalog audit
-              </Link>{" "}
-              to find structural problems (missing price/stock, out of stock, priced below cost).
+              Run a <Link href="/catalog" className="link-accent">catalog audit</Link> to find
+              structural problems (missing price/stock, out of stock, priced below cost).
             </GettingStartedStep>
             <GettingStartedStep n={5}>
               Review and approve or reject it on the{" "}
-              <Link href="/recommendations" className="font-medium text-gray-900 underline underline-offset-2">
-                Recommendations
-              </Link>{" "}
-              page. Approving runs the change immediately and logs an audit event.
+              <Link href="/recommendations" className="link-accent">Recommendations</Link> page.
+              Approving runs the change immediately and logs an audit event.
             </GettingStartedStep>
           </ol>
         </div>
@@ -205,6 +213,7 @@ export default function DashboardPage() {
 function StatCard({
   href,
   icon: Icon,
+  tint,
   label,
   value,
   hint,
@@ -212,6 +221,7 @@ function StatCard({
 }: {
   href: string;
   icon: LucideIcon;
+  tint: keyof typeof TINTS;
   label: string;
   value: number | string | null;
   hint: string;
@@ -220,25 +230,21 @@ function StatCard({
   return (
     <Link
       href={href}
-      className={`group rounded-xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        highlight ? "border-amber-300 bg-amber-50" : "border-gray-200 bg-white"
+      className={`card group p-5 transition hover:-translate-y-0.5 hover:shadow-md ${
+        highlight ? "ring-1 ring-amber-200" : ""
       }`}
     >
       <div className="flex items-start justify-between">
-        <div
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-            highlight ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
-          }`}
-        >
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${TINTS[tint]}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <ArrowRight className="h-4 w-4 text-gray-300 opacity-0 transition group-hover:opacity-100" />
+        <ArrowUpRight className="h-4 w-4 text-slate-300 opacity-0 transition group-hover:opacity-100" />
       </div>
-      <p className="mt-3 text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-0.5 text-3xl font-semibold tracking-tight text-gray-900">
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-0.5 text-3xl font-semibold tracking-tight text-slate-900">
         {value === null ? "—" : value}
       </p>
-      <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      <p className="mt-1 text-xs text-slate-500">{hint}</p>
     </Link>
   );
 }
@@ -246,10 +252,10 @@ function StatCard({
 function GettingStartedStep({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <li className="flex gap-3">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 text-[11px] font-semibold text-white">
         {n}
       </span>
-      <span className="text-sm text-gray-600">{children}</span>
+      <span className="text-sm text-slate-600">{children}</span>
     </li>
   );
 }

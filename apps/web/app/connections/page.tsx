@@ -97,15 +97,15 @@ export default function ConnectionsPage() {
     <AppShell>
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Connections</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Connections</h1>
+          <p className="mt-1 text-sm text-slate-500">
             Stores and marketplaces this workspace syncs products from.
           </p>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="card overflow-hidden">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Platform</th>
@@ -114,43 +114,40 @@ export default function ConnectionsPage() {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {connections?.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                     No connections yet - add one below.
                   </td>
                 </tr>
               )}
               {connections?.map((c) => (
-                <tr key={c.id}>
-                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.platform}</td>
+                <tr key={c.id} className="transition hover:bg-slate-50/60">
+                  <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
+                  <td className="px-4 py-3 text-slate-500">{c.platform}</td>
                   <td className="px-4 py-3">
                     <StatusBadge value={c.status} />
                     {c.last_error && (
-                      <p className="mt-1 max-w-xs text-xs text-red-600">{c.last_error}</p>
+                      <p className="mt-1 max-w-xs text-xs text-rose-600">{c.last_error}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-slate-500">
                     {c.last_synced_at ? new Date(c.last_synced_at).toLocaleString() : "Never"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleSync(c.id)}
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                    >
+                    <button onClick={() => handleSync(c.id)} className="btn-secondary">
                       Sync now
                     </button>
                     {syncMessages[c.id] && (
-                      <p className="mt-1 text-xs text-gray-500">{syncMessages[c.id]}</p>
+                      <p className="mt-1 text-xs text-slate-500">{syncMessages[c.id]}</p>
                     )}
                   </td>
                 </tr>
               ))}
               {connections === null && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                     Loading…
                   </td>
                 </tr>
@@ -159,8 +156,8 @@ export default function ConnectionsPage() {
           </table>
         </div>
 
-        <div className="max-w-lg rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-base font-semibold text-gray-900">Add a connection</h2>
+        <div className="card max-w-lg p-6">
+          <h2 className="text-base font-semibold text-slate-900">Add a connection</h2>
           <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
             <Field label="Platform">
               <select
@@ -230,13 +227,13 @@ export default function ConnectionsPage() {
             )}
 
             {!selectedPlatform.supported && (
-              <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
                 The connection record can be created, but syncing this platform isn&apos;t built
                 yet - see docs/architecture/roadmap.md.
               </p>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-rose-600">{error}</p>}
 
             <button type="submit" disabled={submitting} className="btn-primary self-start">
               {submitting ? "Adding…" : "Add connection"}

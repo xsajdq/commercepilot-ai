@@ -184,16 +184,16 @@ export default function ProductsPage() {
     <AppShell>
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Products</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Products</h1>
+          <p className="mt-1 text-sm text-slate-500">
             Products and their offers. Trigger the pricing and product agents from here - they
             propose changes into the Recommendations queue, never mutating anything directly.
           </p>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="card overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">SKU</th>
                 <th className="px-4 py-3">Name</th>
@@ -204,10 +204,10 @@ export default function ProductsPage() {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {products?.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     No products yet - sync a connection or add one manually below.
                   </td>
                 </tr>
@@ -217,14 +217,14 @@ export default function ProductsPage() {
                 const isExpanded = expandedProductId === p.id;
                 return (
                   <Fragment key={p.id}>
-                    <tr>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-700">{p.sku}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{p.cost ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr className="transition hover:bg-slate-50/60">
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{p.sku}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
+                      <td className="px-4 py-3 text-slate-500">{p.cost ?? "—"}</td>
+                      <td className="px-4 py-3 text-slate-500">
                         {offer?.price_amount ? `${offer.price_amount} ${offer.currency}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{offer?.stock_quantity ?? "—"}</td>
+                      <td className="px-4 py-3 text-slate-500">{offer?.stock_quantity ?? "—"}</td>
                       <td className="px-4 py-3">
                         <StatusBadge value={p.status} />
                       </td>
@@ -233,14 +233,14 @@ export default function ProductsPage() {
                           <div className="flex flex-wrap justify-end gap-2">
                             <button
                               onClick={() => handleGenerateContent(p.id)}
-                              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                              className="btn-secondary"
                             >
                               Generate content
                             </button>
                             {offer && (
                               <button
                                 onClick={() => handleGeneratePricing(offer.id)}
-                                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                className="btn-secondary"
                               >
                                 Generate pricing
                               </button>
@@ -248,24 +248,20 @@ export default function ProductsPage() {
                             {offer && offer.status === "draft" && (
                               <button
                                 onClick={() => handleGenerateListingPublish(offer.id)}
-                                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                className="btn-secondary"
                               >
                                 Publish listing
                               </button>
                             )}
                             <button
                               onClick={() => handleToggleCompetitors(p.id)}
-                              className={`rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 ${
-                                isExpanded
-                                  ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-700"
-                                  : "border-gray-300 text-gray-700"
-                              }`}
+                              className={isExpanded ? "btn-secondary-active" : "btn-secondary"}
                             >
                               Competitors
                             </button>
                           </div>
                           {(actionMessages[p.id] || (offer && actionMessages[offer.id])) && (
-                            <p className="max-w-xs text-right text-xs text-gray-500">
+                            <p className="max-w-xs text-right text-xs text-slate-500">
                               {actionMessages[p.id] ?? actionMessages[offer!.id]}
                             </p>
                           )}
@@ -274,18 +270,18 @@ export default function ProductsPage() {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={7} className="bg-gray-50 px-4 py-4">
+                        <td colSpan={7} className="bg-brand-50/40 px-4 py-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
                             <div className="flex-1">
-                              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Recent competitor prices
                               </h3>
                               {competitorPrices.length === 0 ? (
-                                <p className="mt-2 text-sm text-gray-500">
+                                <p className="mt-2 text-sm text-slate-500">
                                   No observations yet - add one to feed the pricing agent.
                                 </p>
                               ) : (
-                                <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-700">
+                                <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
                                   {competitorPrices.map((cp) => (
                                     <li key={cp.id} className="flex flex-wrap items-center gap-2">
                                       <span className="font-medium">{cp.competitor_name}</span>
@@ -293,7 +289,7 @@ export default function ProductsPage() {
                                         {cp.price} {cp.currency}
                                       </span>
                                       <StatusBadge value={cp.source} />
-                                      <span className="text-xs text-gray-400">
+                                      <span className="text-xs text-slate-400">
                                         {new Date(cp.observed_at).toLocaleDateString()}
                                       </span>
                                       {cp.url && (
@@ -301,7 +297,7 @@ export default function ProductsPage() {
                                           href={cp.url}
                                           target="_blank"
                                           rel="noreferrer"
-                                          className="text-xs text-gray-500 underline"
+                                          className="text-xs text-brand-600 underline"
                                         >
                                           link
                                         </a>
@@ -315,7 +311,7 @@ export default function ProductsPage() {
                               onSubmit={handleAddCompetitorPrice}
                               className="flex flex-1 flex-col gap-2 sm:max-w-xs"
                             >
-                              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Record a competitor price
                               </h3>
                               <input
@@ -340,7 +336,7 @@ export default function ProductsPage() {
                                 className="input"
                               />
                               {competitorError && (
-                                <p className="text-xs text-red-600">{competitorError}</p>
+                                <p className="text-xs text-rose-600">{competitorError}</p>
                               )}
                               <button
                                 type="submit"
@@ -359,7 +355,7 @@ export default function ProductsPage() {
               })}
               {products === null && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                     Loading…
                   </td>
                 </tr>
@@ -368,14 +364,14 @@ export default function ProductsPage() {
           </table>
         </div>
 
-        <div className="max-w-lg rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-base font-semibold text-gray-900">Add a product manually</h2>
-          <p className="mt-1 text-xs text-gray-500">
+        <div className="card max-w-lg p-6">
+          <h2 className="text-base font-semibold text-slate-900">Add a product manually</h2>
+          <p className="mt-1 text-xs text-slate-500">
             Normally products arrive via a connection sync - this is for testing without a live
             store.
           </p>
           {connections.length === 0 ? (
-            <p className="mt-4 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+            <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
               Add a connection first.
             </p>
           ) : (
@@ -437,7 +433,7 @@ export default function ProductsPage() {
                 />
               </Field>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-rose-600">{error}</p>}
 
               <button type="submit" disabled={submitting} className="btn-primary self-start">
                 {submitting ? "Adding…" : "Add product"}

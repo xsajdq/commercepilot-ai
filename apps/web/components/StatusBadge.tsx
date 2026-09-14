@@ -1,28 +1,31 @@
-const COLORS: Record<string, string> = {
-  connected: "bg-green-100 text-green-800",
-  active: "bg-green-100 text-green-800",
-  success: "bg-green-100 text-green-800",
-  succeeded: "bg-green-100 text-green-800",
-  approved: "bg-green-100 text-green-800",
-  disconnected: "bg-gray-100 text-gray-700",
-  draft: "bg-gray-100 text-gray-700",
-  proposed: "bg-gray-100 text-gray-700",
-  queued: "bg-gray-100 text-gray-700",
-  pending_approval: "bg-amber-100 text-amber-800",
-  executing: "bg-amber-100 text-amber-800",
-  running: "bg-amber-100 text-amber-800",
-  error: "bg-red-100 text-red-800",
-  failed: "bg-red-100 text-red-800",
-  rejected: "bg-red-100 text-red-800",
-  low: "bg-green-100 text-green-800",
-  medium: "bg-amber-100 text-amber-800",
-  high: "bg-red-100 text-red-800",
+const COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  connected: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  success: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  succeeded: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  approved: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  disconnected: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
+  draft: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
+  proposed: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
+  queued: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
+  pending_approval: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
+  executing: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
+  running: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
+  error: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500" },
+  failed: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500" },
+  rejected: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500" },
+  low: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  medium: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
+  high: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500" },
 };
 
 export default function StatusBadge({ value }: { value: string }) {
-  const color = COLORS[value] ?? "bg-gray-100 text-gray-700";
+  const c = COLORS[value] ?? { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" };
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${color}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${c.bg} ${c.text}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`} />
       {value.replace(/_/g, " ")}
     </span>
   );

@@ -32,9 +32,13 @@ listing agents across every tenant, each dispatcher task doing nothing
 but enumerate real rows and enqueue the same tasks the manual UI buttons
 already call - no new agent, model, or route needed. Phase 16 was a
 frontend-only pass: `AppShell` moved from a single horizontal top nav to
-a left sidebar (`lucide-react` icons, an off-canvas drawer on mobile),
-and the Dashboard page got a matching visual refresh - no backend
-changes, same data and behavior underneath.
+a dark, brand-violet left sidebar (`lucide-react` icons, an off-canvas
+drawer on mobile), every page was swept onto a real design system
+(a custom `brand` color scale, `Plus Jakarta Sans` via `next/font/google`,
+shared `.card`/`.btn-primary`/`.input` tokens) instead of unstyled
+Tailwind gray/black defaults, and the landing/login/register pages got a
+matching dark gradient treatment - no backend changes, same data and
+behavior underneath.
 
 ## Repository layout
 

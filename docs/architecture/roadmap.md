@@ -823,3 +823,58 @@ migration, agent, or API route was touched, so no package's test count
 changes. New frontend dependency: `lucide-react` (icons for the sidebar
 and stat cards), matching CLAUDE.md's stated stack
 (`shadcn/ui`-style tooling commonly pairs with it).
+
+**Phase 16 follow-up - a real visual identity, not just a layout change.**
+The first Phase 16 pass fixed the *structure* (sidebar on the left) but
+kept the original look: plain white cards on thin gray borders, black
+buttons, system-ui font - functional, but generic, and it still read as
+dated once the novelty of the sidebar wore off. This pass gives
+CommercePilot an actual design system instead of unstyled Tailwind
+defaults.
+
+**Tokens** (`tailwind.config.ts`, `app/globals.css`): a custom `brand`
+color scale (violet, `#7c5cf5` at 500) used everywhere an accent color
+is needed - primary buttons, active nav state, focus rings, links -
+instead of flat black/gray; `slate` replacing `gray` as the neutral scale
+app-wide for a cooler, more deliberate feel; `Plus Jakarta Sans` (via
+`next/font/google`, self-hosted at build time - no runtime request to
+Google, CLAUDE.md's "never log/leak" spirit extended to not leaking
+visitor IPs to a third party either) replacing the system font stack for
+real typographic character; reusable `.card`/`.btn-primary`/
+`.btn-secondary`/`.input`/`.link-accent` component classes so every page
+draws from the same surface, button, and input styles rather than
+repeating ad hoc utility strings; a `fade-in-up` keyframe applied to
+`AppShell`'s main content on every route change for a small but real
+motion cue that the earlier version had none of.
+
+**AppShell**: the sidebar itself moved from flat white to a dark
+`ink`-950→`ink`-900 gradient - the single biggest driver of "looks
+modern" in comparable SaaS dashboards, and it makes the brand-violet
+active-nav pill (with a small glow) and the gradient logomark actually
+pop instead of blending into a white-on-white page. The logomark itself
+changed from a generic sparkle to a rotated `Navigation` icon (a
+compass/arrow) - a small nod to "pilot" in the product name instead of a
+placeholder icon.
+
+**Every page** (dashboard, connections, products, catalog,
+recommendations, login, register, the landing page) was swept to the new
+tokens - `.card` instead of ad hoc bordered divs, `.btn-primary`/
+`.btn-secondary` instead of repeated black/gray button classNames,
+`StatusBadge` redrawn with a colored dot + uppercase micro-label instead
+of a flat pill. The landing, login, and register pages got a matching
+dark violet-gradient treatment (same `ink`/`brand` tokens as the
+sidebar) so the pre-auth and post-auth experience read as one product,
+not two. Dashboard stat cards got distinct tinted icon chips per metric
+category (violet/sky/emerald/teal, amber reserved for the two
+attention-needed cards) instead of uniform gray, for a bit of considered
+color rather than monochrome.
+
+Verified against the real running stack, not just a lint pass: a fresh
+Postgres + Redis + real API + real Next.js dev server, driven with
+Playwright at both 1440px and 390px through the full flow (landing →
+register → dashboard → connections/products/catalog/recommendations →
+mobile login → mobile dashboard → mobile drawer) with zero browser
+console errors. `npm run lint`, `npm run typecheck`, and `npm run build`
+all pass. Purely presentational, same as the first Phase 16 pass: no
+data-fetching logic, route, or API call changed - every page renders the
+exact same data through new markup/classes.

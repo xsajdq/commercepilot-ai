@@ -69,23 +69,23 @@ export default function RecommendationsPage() {
     <AppShell>
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recommendations</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Recommendations
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
             Everything an agent has proposed. Approving runs the underlying change immediately
             and writes an audit log; rejecting does nothing.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                filter === f.value
-                  ? "bg-gray-900 text-white"
-                  : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
+              className={
+                filter === f.value ? "btn-secondary-active" : "btn-secondary"
+              }
             >
               {f.label}
             </button>
@@ -94,39 +94,39 @@ export default function RecommendationsPage() {
 
         <div className="flex flex-col gap-3">
           {recommendations?.length === 0 && (
-            <p className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500">
+            <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
               Nothing here. Trigger a pricing or content recommendation from the Products page.
             </p>
           )}
           {recommendations?.map((r) => (
-            <div key={r.id} className="rounded-lg border border-gray-200 bg-white p-4">
+            <div key={r.id} className="card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-gray-900">{r.title}</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">{r.title}</h3>
                     <StatusBadge value={r.status} />
                     <StatusBadge value={r.risk_level} />
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-slate-500">
                     {r.type} · {r.entity_type} · {new Date(r.created_at).toLocaleString()}
                     {r.confidence && ` · confidence ${Number(r.confidence) * 100}%`}
                   </p>
-                  {r.reason && <p className="max-w-2xl text-sm text-gray-700">{r.reason}</p>}
-                  {errors[r.id] && <p className="text-sm text-red-600">{errors[r.id]}</p>}
+                  {r.reason && <p className="max-w-2xl text-sm text-slate-700">{r.reason}</p>}
+                  {errors[r.id] && <p className="text-sm text-rose-600">{errors[r.id]}</p>}
                 </div>
                 {r.status === "pending_approval" && (
                   <div className="flex gap-2">
                     <button
                       disabled={busyId === r.id}
                       onClick={() => handleDecision(r.id, "approve")}
-                      className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                      className="btn-primary px-3 py-1.5 text-xs"
                     >
                       Approve
                     </button>
                     <button
                       disabled={busyId === r.id}
                       onClick={() => handleDecision(r.id, "reject")}
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      className="btn-secondary"
                     >
                       Reject
                     </button>
@@ -136,7 +136,7 @@ export default function RecommendationsPage() {
             </div>
           ))}
           {recommendations === null && (
-            <p className="px-4 py-8 text-center text-sm text-gray-400">Loading…</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400">Loading…</p>
           )}
         </div>
       </div>

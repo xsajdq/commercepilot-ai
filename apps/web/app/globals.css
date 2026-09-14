@@ -3,10 +3,44 @@
 @tailwind utilities;
 
 @layer components {
-  .input {
-    @apply rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500;
+  .card {
+    @apply rounded-2xl border border-slate-200/70 bg-white shadow-soft;
   }
+
+  .input {
+    @apply rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+  }
+
   .btn-primary {
-    @apply rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-glow transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary-active {
+    @apply inline-flex items-center justify-center rounded-xl border border-transparent bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-glow transition hover:bg-brand-700;
+  }
+
+  .link-accent {
+    @apply font-medium text-brand-700 underline decoration-brand-300 underline-offset-2 transition hover:text-brand-800;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: fade-in-up 0.35s ease-out both;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
