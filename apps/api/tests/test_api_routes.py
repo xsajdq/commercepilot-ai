@@ -272,6 +272,87 @@ class TestProductsRoutes:
         )
         assert result.status_code == 404
 
+    async def _product(self, client: AsyncClient, token: str) -> str:
+        connection_id = await self._connection(client, token)
+        create = await client.post(
+            "/products",
+            json={
+                "connection_id": connection_id,
+                "sku": "COMP-SKU",
+                "name": "Thing",
+                "price_amount": "10.00",
+            },
+            headers=_auth(token),
+        )
+        return create.json()["id"]
+
+    async def test_create_and_list_competitor_prices(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+        product_id = await self._product(client, token)
+
+        create = await client.post(
+            f"/products/{product_id}/competitor-prices",
+            json={"competitor_name": "Rival Store", "price": "89.99", "url": "https://rival.example.com"},
+            headers=_auth(token),
+        )
+
+        assert create.status_code == 201, create.text
+        body = create.json()
+        assert body["competitor_name"] == "Rival Store"
+        assert body["price"] == "89.99"
+        assert body["source"] == "manual"
+        assert body["url"] == "https://rival.example.com"
+
+        listed = await client.get(
+            f"/products/{product_id}/competitor-prices", headers=_auth(token)
+        )
+        assert listed.status_code == 200
+        assert len(listed.json()) == 1
+
+    async def test_competitor_price_must_be_positive(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+        product_id = await self._product(client, token)
+
+        result = await client.post(
+            f"/products/{product_id}/competitor-prices",
+            json={"competitor_name": "Rival Store", "price": "-5.00"},
+            headers=_auth(token),
+        )
+
+        assert result.status_code == 422
+
+    async def test_competitor_prices_for_unknown_product_404s(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        create = await client.post(
+            "/products/00000000-0000-0000-0000-000000000000/competitor-prices",
+            json={"competitor_name": "Rival Store", "price": "10.00"},
+            headers=_auth(token),
+        )
+        listed = await client.get(
+            "/products/00000000-0000-0000-0000-000000000000/competitor-prices",
+            headers=_auth(token),
+        )
+
+        assert create.status_code == 404
+        assert listed.status_code == 404
+
+    async def test_competitor_prices_are_tenant_isolated(self, client: AsyncClient) -> None:
+        alice_token = await _register(client, ALICE)
+        product_id = await self._product(client, alice_token)
+        await client.post(
+            f"/products/{product_id}/competitor-prices",
+            json={"competitor_name": "Rival Store", "price": "10.00"},
+            headers=_auth(alice_token),
+        )
+
+        bob_token = await _register(client, BOB)
+        bob_list = await client.get(
+            f"/products/{product_id}/competitor-prices", headers=_auth(bob_token)
+        )
+
+        assert bob_list.status_code == 404
+
 
 class TestRecommendationsRoutes:
     async def _setup_product_and_recommendation(

@@ -240,6 +240,35 @@ export function createProduct(
   });
 }
 
+export type CompetitorPriceOut = {
+  id: string;
+  competitor_name: string;
+  url: string | null;
+  price: string;
+  currency: string;
+  source: "manual" | "api";
+  observed_at: string;
+};
+
+export function listCompetitorPrices(
+  token: string,
+  productId: string,
+): Promise<CompetitorPriceOut[]> {
+  return request(`/products/${productId}/competitor-prices`, { headers: authHeaders(token) });
+}
+
+export function createCompetitorPrice(
+  token: string,
+  productId: string,
+  payload: { competitor_name: string; price: string; url?: string },
+): Promise<CompetitorPriceOut> {
+  return request(`/products/${productId}/competitor-prices`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateContentRecommendation(
   token: string,
   productId: string,

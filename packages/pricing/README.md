@@ -46,6 +46,13 @@ a human will later approve (Phase 8). `apps/worker`'s
 `generate_price_recommendation` Celery task is what actually runs it
 against a real offer and submits the result for approval.
 
+`competitor_prices` sat unused from Phase 9 until Phase 14 - the engine
+always accepted it, but nothing ever populated it until
+`cp_domain.CompetitorPrice` existed for the Celery task to query. This
+package itself needed no changes at all for that to start mattering: it
+was built to consume competitor data from day one, and now it actually
+does.
+
 Run this package's own tests (pure math, no DB, no other services):
 
 ```bash

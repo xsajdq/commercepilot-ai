@@ -29,7 +29,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 11 — Listing agent** (Allegro publication workflow).
 - [x] **Phase 12 — Catalog agent** (daily catalog health audit).
 - [x] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
-- [ ] **Phase 14 — Competition agent** (manual competitors + API sources).
+- [x] **Phase 14 — Competition agent** (manual competitors + API sources).
 - [ ] **Phase 15 — Recommendations** (daily scheduler tying agents together).
 - [ ] **Phase 16 — Dashboard polish**.
 - [ ] **Phase 17 — Shoper connector**.
@@ -642,3 +642,61 @@ bringing it to 32); `apps/api` gained 6 for the new `/analytics` routes
 (live dashboard math against a real product, task triggering, listing
 past runs, tenant isolation - bringing it to 109). All packages'
 venvs rebuilt from scratch and all still pass.
+
+Phase 14 complete: the competition agent, and mostly a matter of closing
+a gap that had existed since Phase 9 - `cp_pricing.compute_price_bounds`
+has accepted `competitor_prices` from day one (caps the recommendation
+at the highest visible competitor, docks confidence when there's none),
+but nothing had ever actually populated it. `apps/worker`'s
+`generate_price_recommendation` always called the pricing agent with
+zero competitor data, silently.
+
+New `cp_domain.CompetitorPrice` (a new migration): one observed
+competitor price per row - `product_id`, `competitor_name`, `url`
+(optional), `price`/`currency`, `source` (`MANUAL` today; `API` is a
+documented, not-yet-implemented extension point - a future
+price-comparison API integration would write rows here with no schema
+change, the same way `ConnectionPlatform` already lists platforms
+without connectors yet). `apps/api` gained
+`POST /products/{id}/competitor-prices` (the "manual competitors" half
+of the phase name - a human types in what a competitor charges) and
+`GET /products/{id}/competitor-prices`.
+
+The actual fix: `worker.tasks.pricing._generate_price_recommendation`
+now queries `CompetitorPrice` rows for the offer's product observed in
+the last 30 days (older ones are excluded as more likely stale than
+useful - an old snapshot could easily be higher or lower than the
+competitor's current real price) and passes them straight into
+`build_pricing_proposal(competitor_prices=...)` - `cp_pricing` and the
+pricing agent needed no changes at all, since they were built to accept
+this from the start.
+
+Verified against the real running stack, not just unit tests: with no
+competitor data, an offer (cost 60, price 100) got recommended down to
+85.71 ("No competitor prices available - recommendation is cost-based
+only"). Recorded a real competitor price of 70.00 via the API, rejected
+the stale recommendation, and regenerated it - the new recommendation
+was capped at exactly 70.00 ("Capped at the highest competitor price
+(70.00) rather than pricing above the whole market"), proving the wiring
+actually changes the number, not just that a recommendation gets
+produced. `apps/web`'s Products page gained a per-product "Competitors"
+toggle - a compact list of recent observations plus an inline form to
+record one.
+
+"API sources" (the second half of the phase name) is intentionally not
+implemented - the schema and the pricing agent's consumption of it are
+already source-agnostic, so a future phase adding a real
+price-comparison API integration is "write `CompetitorPrice` rows with
+`source=API`," no other change needed. Not invented here since no real
+vendor integration exists yet to build honestly.
+
+Tested: 4 new tests in `apps/api/tests/test_api_routes.py` for the new
+routes (create/list, positive-price validation, 404 for an unknown
+product, tenant isolation - bringing it to 113); 2 new DB-integration
+tests in `apps/worker/tests/test_pricing_task.py` proving the wiring
+(a recent competitor price actually caps the recommendation to the
+exact expected value; a 40-day-old one is ignored and the recommendation
+falls back to the uncapped cost-based price - bringing it to 34). All
+touched apps' venvs rebuilt from scratch and pass; migration verified
+upgrade → downgrade → upgrade; docker compose config valid; frontend
+lint/typecheck/build clean.

@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import {
   ApiError,
+  createCompetitorPrice,
   createProduct,
   generateContentRecommendation,
   generateListingPublishRecommendation,
   generatePricingRecommendation,
+  listCompetitorPrices,
   listConnections,
   listProducts,
+  type CompetitorPriceOut,
   type ConnectionOut,
   type ProductOut,
 } from "@/lib/api";
@@ -31,6 +34,14 @@ export default function ProductsPage() {
   const [priceAmount, setPriceAmount] = useState("");
   const [stockQuantity, setStockQuantity] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [competitorPrices, setCompetitorPrices] = useState<CompetitorPriceOut[]>([]);
+  const [competitorName, setCompetitorName] = useState("");
+  const [competitorPrice, setCompetitorPrice] = useState("");
+  const [competitorUrl, setCompetitorUrl] = useState("");
+  const [competitorSubmitting, setCompetitorSubmitting] = useState(false);
+  const [competitorError, setCompetitorError] = useState<string | null>(null);
 
   function refresh() {
     const token = getAccessToken();
@@ -127,6 +138,48 @@ export default function ProductsPage() {
     }
   }
 
+  async function handleToggleCompetitors(productId: string) {
+    if (expandedProductId === productId) {
+      setExpandedProductId(null);
+      return;
+    }
+    const token = getAccessToken();
+    if (!token) return;
+    setExpandedProductId(productId);
+    setCompetitorError(null);
+    setCompetitorName("");
+    setCompetitorPrice("");
+    setCompetitorUrl("");
+    try {
+      setCompetitorPrices(await listCompetitorPrices(token, productId));
+    } catch {
+      setCompetitorPrices([]);
+    }
+  }
+
+  async function handleAddCompetitorPrice(e: React.FormEvent) {
+    e.preventDefault();
+    const token = getAccessToken();
+    if (!token || !expandedProductId) return;
+    setCompetitorSubmitting(true);
+    setCompetitorError(null);
+    try {
+      await createCompetitorPrice(token, expandedProductId, {
+        competitor_name: competitorName,
+        price: competitorPrice,
+        url: competitorUrl || undefined,
+      });
+      setCompetitorName("");
+      setCompetitorPrice("");
+      setCompetitorUrl("");
+      setCompetitorPrices(await listCompetitorPrices(token, expandedProductId));
+    } catch (err) {
+      setCompetitorError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setCompetitorSubmitting(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
@@ -161,52 +214,147 @@ export default function ProductsPage() {
               )}
               {products?.map((p) => {
                 const offer = p.offers[0];
+                const isExpanded = expandedProductId === p.id;
                 return (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{p.sku}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{p.cost ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {offer?.price_amount ? `${offer.price_amount} ${offer.currency}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{offer?.stock_quantity ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge value={p.status} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleGenerateContent(p.id)}
-                            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                          >
-                            Generate content
-                          </button>
-                          {offer && (
+                  <Fragment key={p.id}>
+                    <tr>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-700">{p.sku}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.cost ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {offer?.price_amount ? `${offer.price_amount} ${offer.currency}` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{offer?.stock_quantity ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge value={p.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="flex flex-wrap justify-end gap-2">
                             <button
-                              onClick={() => handleGeneratePricing(offer.id)}
+                              onClick={() => handleGenerateContent(p.id)}
                               className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                             >
-                              Generate pricing
+                              Generate content
                             </button>
-                          )}
-                          {offer && offer.status === "draft" && (
+                            {offer && (
+                              <button
+                                onClick={() => handleGeneratePricing(offer.id)}
+                                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                Generate pricing
+                              </button>
+                            )}
+                            {offer && offer.status === "draft" && (
+                              <button
+                                onClick={() => handleGenerateListingPublish(offer.id)}
+                                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                Publish listing
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleGenerateListingPublish(offer.id)}
-                              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                              onClick={() => handleToggleCompetitors(p.id)}
+                              className={`rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 ${
+                                isExpanded
+                                  ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-700"
+                                  : "border-gray-300 text-gray-700"
+                              }`}
                             >
-                              Publish listing
+                              Competitors
                             </button>
+                          </div>
+                          {(actionMessages[p.id] || (offer && actionMessages[offer.id])) && (
+                            <p className="max-w-xs text-right text-xs text-gray-500">
+                              {actionMessages[p.id] ?? actionMessages[offer!.id]}
+                            </p>
                           )}
                         </div>
-                        {(actionMessages[p.id] || (offer && actionMessages[offer.id])) && (
-                          <p className="max-w-xs text-right text-xs text-gray-500">
-                            {actionMessages[p.id] ?? actionMessages[offer!.id]}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} className="bg-gray-50 px-4 py-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+                            <div className="flex-1">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Recent competitor prices
+                              </h3>
+                              {competitorPrices.length === 0 ? (
+                                <p className="mt-2 text-sm text-gray-500">
+                                  No observations yet - add one to feed the pricing agent.
+                                </p>
+                              ) : (
+                                <ul className="mt-2 flex flex-col gap-1 text-sm text-gray-700">
+                                  {competitorPrices.map((cp) => (
+                                    <li key={cp.id} className="flex flex-wrap items-center gap-2">
+                                      <span className="font-medium">{cp.competitor_name}</span>
+                                      <span>
+                                        {cp.price} {cp.currency}
+                                      </span>
+                                      <StatusBadge value={cp.source} />
+                                      <span className="text-xs text-gray-400">
+                                        {new Date(cp.observed_at).toLocaleDateString()}
+                                      </span>
+                                      {cp.url && (
+                                        <a
+                                          href={cp.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-xs text-gray-500 underline"
+                                        >
+                                          link
+                                        </a>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <form
+                              onSubmit={handleAddCompetitorPrice}
+                              className="flex flex-1 flex-col gap-2 sm:max-w-xs"
+                            >
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Record a competitor price
+                              </h3>
+                              <input
+                                required
+                                placeholder="Competitor name"
+                                value={competitorName}
+                                onChange={(e) => setCompetitorName(e.target.value)}
+                                className="input"
+                              />
+                              <input
+                                required
+                                placeholder="Price, e.g. 89.99"
+                                inputMode="decimal"
+                                value={competitorPrice}
+                                onChange={(e) => setCompetitorPrice(e.target.value)}
+                                className="input"
+                              />
+                              <input
+                                placeholder="URL (optional)"
+                                value={competitorUrl}
+                                onChange={(e) => setCompetitorUrl(e.target.value)}
+                                className="input"
+                              />
+                              {competitorError && (
+                                <p className="text-xs text-red-600">{competitorError}</p>
+                              )}
+                              <button
+                                type="submit"
+                                disabled={competitorSubmitting}
+                                className="btn-primary self-start text-xs"
+                              >
+                                {competitorSubmitting ? "Adding…" : "Add"}
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
               {products === null && (

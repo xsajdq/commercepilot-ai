@@ -34,7 +34,7 @@ code carrying the meaning:
 - `409` - a state conflict (duplicate SKU/connection name, or a decision
   attempted on a recommendation that isn't pending)
 
-## Resources (Phase 6-13; auth is Phase 1)
+## Resources (Phase 6-14; auth is Phase 1)
 
 - `/connections` - stores/marketplaces this tenant syncs from.
   `POST /connections/{id}/sync` enqueues `worker.sync_connection` and
@@ -49,7 +49,11 @@ code carrying the meaning:
   / `worker.generate_price_recommendation` /
   `worker.generate_listing_publish_recommendation`) - all three only ever
   *propose* a change into `/recommendations`, never mutate anything
-  directly.
+  directly. `POST /products/{id}/competitor-prices` and
+  `GET /products/{id}/competitor-prices` record and list manually-entered
+  competitor price observations (Phase 14) - the pricing agent reads
+  recent ones (last 30 days) to actually inform `generate-pricing-
+  recommendation`'s output, rather than pricing on cost alone.
 - `/recommendations` - everything an agent has proposed
   (`?status=pending_approval` etc. to filter). `POST .../approve` and
   `POST .../reject` are the only way a proposed change actually takes

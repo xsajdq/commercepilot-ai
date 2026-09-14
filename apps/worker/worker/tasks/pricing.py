@@ -1,7 +1,9 @@
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from cp_ai.agents import build_pricing_proposal
+from cp_domain.competitor_price import CompetitorPrice
 from cp_domain.offer import Offer
 from cp_domain.price import Price
 from cp_domain.product import Product
@@ -12,6 +14,12 @@ from sqlalchemy import select
 
 from worker.celery_app import app
 from worker.db import session_scope
+
+# Phase 14: a competitor price observed too long ago is more likely
+# stale than useful - an old snapshot could easily be higher or lower
+# than the current real price, so it's excluded rather than treated as
+# still-current market data.
+_COMPETITOR_PRICE_MAX_AGE = timedelta(days=30)
 
 
 @app.task(name="worker.generate_price_recommendation")
@@ -61,7 +69,24 @@ async def _generate_price_recommendation(tenant_id: uuid.UUID, offer_id: uuid.UU
         if existing is not None:
             return {"proposed": False, "reason": "a price recommendation is already pending"}
 
-        proposal = build_pricing_proposal(product=product, price=price, offer_id=offer.id)
+        # Phase 14: actually feed the pricing engine's competitor
+        # awareness (accepted since Phase 9, never populated until this
+        # table existed) with real observations - manually entered today,
+        # a future price-comparison API tomorrow (CompetitorPriceSource.API),
+        # neither this task nor cp_pricing cares which.
+        cutoff = datetime.now(UTC) - _COMPETITOR_PRICE_MAX_AGE
+        competitor_rows = await db.scalars(
+            select(CompetitorPrice).where(
+                CompetitorPrice.tenant_id == tenant_id,
+                CompetitorPrice.product_id == product.id,
+                CompetitorPrice.observed_at >= cutoff,
+            )
+        )
+        competitor_prices = tuple(row.price for row in competitor_rows)
+
+        proposal = build_pricing_proposal(
+            product=product, price=price, offer_id=offer.id, competitor_prices=competitor_prices
+        )
         if proposal is None:
             return {"proposed": False, "reason": "no price change to propose"}
 

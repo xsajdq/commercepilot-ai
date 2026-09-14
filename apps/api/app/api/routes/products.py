@@ -1,7 +1,9 @@
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 
+from cp_domain.competitor_price import CompetitorPrice, CompetitorPriceSource
 from cp_domain.connection import Connection
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.price import Price
@@ -9,7 +11,7 @@ from cp_domain.product import Product, ProductStatus
 from cp_domain.stock import Stock
 from cp_domain.variant import Variant
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -57,6 +59,26 @@ class ProductOut(BaseModel):
 
 class TaskTriggeredResponse(BaseModel):
     task_id: str
+
+
+class CreateCompetitorPriceRequest(BaseModel):
+    competitor_name: str
+    url: str | None = None
+    price: Decimal = Field(gt=0)
+    currency: str = "PLN"
+    observed_at: datetime | None = None
+
+
+class CompetitorPriceOut(BaseModel):
+    id: uuid.UUID
+    competitor_name: str
+    url: str | None
+    price: Decimal
+    currency: str
+    source: CompetitorPriceSource
+    observed_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 def _to_product_out(product: Product) -> ProductOut:
@@ -235,3 +257,74 @@ async def generate_listing_publish_recommendation(
         args=[str(membership.tenant_id), str(offer.id)],
     )
     return TaskTriggeredResponse(task_id=result.id)
+
+
+@router.post(
+    "/{product_id}/competitor-prices",
+    response_model=CompetitorPriceOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_competitor_price(
+    product_id: uuid.UUID,
+    payload: CreateCompetitorPriceRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    membership: Annotated[Membership, Depends(get_current_membership)],
+) -> CompetitorPrice:
+    """Records one manually-entered competitor price observation - the
+    only source implemented today (`CompetitorPriceSource.MANUAL`); a
+    future price-comparison API integration would write rows here with
+    `source=API`, no schema change needed. The pricing agent
+    (`worker.generate_price_recommendation`) reads recent rows from this
+    table to actually inform its recommendation - see the roadmap's
+    Phase 14 writeup for why that wiring, not this endpoint, is the
+    real point of this phase."""
+    product = await db.scalar(
+        select(Product).where(
+            Product.id == product_id, Product.tenant_id == membership.tenant_id
+        )
+    )
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    competitor_price = CompetitorPrice(
+        tenant_id=membership.tenant_id,
+        product_id=product.id,
+        competitor_name=payload.competitor_name,
+        url=payload.url,
+        price=payload.price,
+        currency=payload.currency,
+        source=CompetitorPriceSource.MANUAL,
+        observed_at=payload.observed_at or datetime.now(UTC),
+    )
+    db.add(competitor_price)
+    await db.commit()
+    return competitor_price
+
+
+@router.get(
+    "/{product_id}/competitor-prices",
+    response_model=list[CompetitorPriceOut],
+)
+async def list_competitor_prices(
+    product_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    membership: Annotated[Membership, Depends(get_current_membership)],
+) -> list[CompetitorPrice]:
+    product = await db.scalar(
+        select(Product).where(
+            Product.id == product_id, Product.tenant_id == membership.tenant_id
+        )
+    )
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    result = await db.scalars(
+        select(CompetitorPrice)
+        .where(
+            CompetitorPrice.tenant_id == membership.tenant_id,
+            CompetitorPrice.product_id == product_id,
+        )
+        .order_by(CompetitorPrice.observed_at.desc())
+        .limit(50)
+    )
+    return list(result)

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 # Must be set before `worker.db`/`worker.celery_app` are imported: both
@@ -13,6 +14,10 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("ENCRYPTION_KEY", "PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=")
 
 import pytest  # noqa: E402
+from cp_domain.competitor_price import (  # noqa: E402
+    CompetitorPrice,
+    CompetitorPriceSource,
+)
 from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus  # noqa: E402
 from cp_domain.offer import Offer, OfferStatus  # noqa: E402
 from cp_domain.price import Price  # noqa: E402
@@ -21,7 +26,7 @@ from cp_domain.stock import Stock  # noqa: E402
 from cp_domain.variant import Variant  # noqa: E402
 from cp_shared.crypto import encrypt_credentials  # noqa: E402
 from cp_shared.db import Base  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 
 # _TenantRef/_UserRef aren't test-only: worker/db.py defines them for
 # production too, so any tenant-scoped flush from a real task resolves
@@ -169,5 +174,42 @@ def make_offer_with_price(
                 db.add(Stock(tenant_id=tenant_id, offer_id=offer.id, quantity=stock_quantity))
             await db.commit()
             return offer.id
+
+    return asyncio.run(_create())
+
+
+def get_product_id(tenant_id: uuid.UUID, sku: str) -> uuid.UUID:
+    async def _get() -> uuid.UUID:
+        async with async_session_factory() as db:
+            product = await db.scalar(
+                select(Product).where(Product.tenant_id == tenant_id, Product.sku == sku)
+            )
+            return product.id
+
+    return asyncio.run(_get())
+
+
+def make_competitor_price(
+    tenant_id: uuid.UUID,
+    product_id: uuid.UUID,
+    *,
+    competitor_name: str = "Rival Store",
+    price: Decimal = Decimal("90.00"),
+    observed_at: datetime | None = None,
+) -> uuid.UUID:
+    async def _create() -> uuid.UUID:
+        async with async_session_factory() as db:
+            row = CompetitorPrice(
+                tenant_id=tenant_id,
+                product_id=product_id,
+                competitor_name=competitor_name,
+                price=price,
+                currency="PLN",
+                source=CompetitorPriceSource.MANUAL,
+                observed_at=observed_at or datetime.now(UTC),
+            )
+            db.add(row)
+            await db.commit()
+            return row.id
 
     return asyncio.run(_create())

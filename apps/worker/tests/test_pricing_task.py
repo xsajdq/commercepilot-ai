@@ -1,12 +1,19 @@
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from cp_domain.recommendation import Recommendation, RecommendationStatus, RecommendationType
 from cp_pricing import PricingInputs, compute_price_bounds
 from sqlalchemy import func, select
 
-from tests.conftest import make_connection, make_offer_with_price, make_tenant
+from tests.conftest import (
+    get_product_id,
+    make_competitor_price,
+    make_connection,
+    make_offer_with_price,
+    make_tenant,
+)
 from worker.db import async_session_factory
 from worker.tasks.pricing import generate_price_recommendation
 
@@ -94,3 +101,45 @@ class TestGeneratePriceRecommendation:
 
         assert result["proposed"] is False
         assert _count_recommendations() == 0
+
+    def test_a_recent_competitor_price_caps_the_recommendation(self) -> None:
+        """Phase 14: cp_pricing has accepted competitor_prices since
+        Phase 9, but nothing ever populated it until now - this proves
+        the wiring actually changes the recommended price, not just that
+        a recommendation gets proposed."""
+        tenant_id = make_tenant()
+        connection_id = make_connection(tenant_id, {"access_token": "tok"})
+        offer_id = make_offer_with_price(
+            tenant_id, connection_id, cost=Decimal("60"), price_amount=Decimal("100.00")
+        )
+        product_id = get_product_id(tenant_id, "SKU-1")
+        # Uncapped, cost=60 targets ~85.71 (see the no-competitor test
+        # above) - a competitor at 70 sits below that but above the
+        # margin floor (~66.67), so the engine should cap there instead.
+        make_competitor_price(tenant_id, product_id, price=Decimal("70.00"))
+
+        result = generate_price_recommendation.run(str(tenant_id), str(offer_id))
+
+        assert result["proposed"] is True
+        recommendation = _get_recommendation(result["recommendation_id"])
+        assert Decimal(recommendation.payload["tool_arguments"]["new_amount"]) == Decimal("70.00")
+
+    def test_a_stale_competitor_price_is_ignored(self) -> None:
+        tenant_id = make_tenant()
+        connection_id = make_connection(tenant_id, {"access_token": "tok"})
+        offer_id = make_offer_with_price(
+            tenant_id, connection_id, cost=Decimal("60"), price_amount=Decimal("100.00")
+        )
+        product_id = get_product_id(tenant_id, "SKU-1")
+        make_competitor_price(
+            tenant_id,
+            product_id,
+            price=Decimal("70.00"),
+            observed_at=datetime.now(UTC) - timedelta(days=40),
+        )
+
+        result = generate_price_recommendation.run(str(tenant_id), str(offer_id))
+
+        recommendation = _get_recommendation(result["recommendation_id"])
+        uncapped = compute_price_bounds(PricingInputs(cost=Decimal("60"))).recommended_price
+        assert Decimal(recommendation.payload["tool_arguments"]["new_amount"]) == uncapped

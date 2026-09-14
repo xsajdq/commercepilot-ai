@@ -7,6 +7,7 @@ from cp_domain.approval import Approval, ApprovalStatus
 from cp_domain.audit_event import ActorType, AuditEvent, AuditResult
 from cp_domain.brand import Brand
 from cp_domain.category import Category
+from cp_domain.competitor_price import CompetitorPrice, CompetitorPriceSource
 from cp_domain.connection import Connection, ConnectionPlatform, ConnectionStatus
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.order import Order, OrderItem, OrderStatus
@@ -32,6 +33,8 @@ __all__ = [
     "AuditResult",
     "Brand",
     "Category",
+    "CompetitorPrice",
+    "CompetitorPriceSource",
     "Connection",
     "ConnectionPlatform",
     "ConnectionStatus",
