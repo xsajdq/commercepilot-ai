@@ -13,6 +13,7 @@ from cp_connectors.exceptions import (
     ConnectorRateLimitError,
 )
 from cp_connectors.mock import MockConnector
+from cp_connectors.prestashop import PrestaShopConnector
 from cp_connectors.shoper import ShoperConnector
 from cp_connectors.types import (
     CategoryParameter,
@@ -36,6 +37,7 @@ __all__ = [
     "ConnectorProduct",
     "ConnectorRateLimitError",
     "MockConnector",
+    "PrestaShopConnector",
     "PriceUpdate",
     "ShoperConnector",
     "StockUpdate",

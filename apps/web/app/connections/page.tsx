@@ -19,7 +19,7 @@ const PLATFORMS: { value: ConnectionPlatform; label: string; supported: boolean 
   { value: "woocommerce", label: "WooCommerce", supported: true },
   { value: "allegro", label: "Allegro", supported: true },
   { value: "shoper", label: "Shoper", supported: true },
-  { value: "prestashop", label: "PrestaShop", supported: false },
+  { value: "prestashop", label: "PrestaShop", supported: true },
   { value: "idosell", label: "IdoSell", supported: false },
 ];
 
@@ -36,6 +36,7 @@ export default function ConnectionsPage() {
   const [accessToken, setAccessToken] = useState("");
   const [shoperClientId, setShoperClientId] = useState("");
   const [shoperClientSecret, setShoperClientSecret] = useState("");
+  const [prestashopApiKey, setPrestashopApiKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function refresh() {
@@ -64,7 +65,9 @@ export default function ConnectionsPage() {
                 client_id: shoperClientId,
                 client_secret: shoperClientSecret,
               }
-            : {};
+            : platform === "prestashop"
+              ? { store_url: storeUrl, api_key: prestashopApiKey }
+              : {};
 
     try {
       await createConnection(token, { platform, name, credentials });
@@ -75,6 +78,7 @@ export default function ConnectionsPage() {
       setAccessToken("");
       setShoperClientId("");
       setShoperClientSecret("");
+      setPrestashopApiKey("");
       refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -261,6 +265,29 @@ export default function ConnectionsPage() {
                     type="password"
                     value={shoperClientSecret}
                     onChange={(e) => setShoperClientSecret(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+              </>
+            )}
+
+            {platform === "prestashop" && (
+              <>
+                <Field label="Store URL">
+                  <input
+                    required
+                    value={storeUrl}
+                    onChange={(e) => setStoreUrl(e.target.value)}
+                    className="input"
+                    placeholder="https://shop.example.com"
+                  />
+                </Field>
+                <Field label="Webservice API key">
+                  <input
+                    required
+                    type="password"
+                    value={prestashopApiKey}
+                    onChange={(e) => setPrestashopApiKey(e.target.value)}
                     className="input"
                   />
                 </Field>

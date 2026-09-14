@@ -2,6 +2,7 @@ from typing import Any
 
 from cp_connectors.allegro import AllegroConnector
 from cp_connectors.base import CommerceConnector
+from cp_connectors.prestashop import PrestaShopConnector
 from cp_connectors.shoper import ShoperConnector
 from cp_connectors.woocommerce import WooCommerceConnector
 from cp_domain.connection import Connection, ConnectionPlatform
@@ -9,7 +10,7 @@ from cp_domain.connection import Connection, ConnectionPlatform
 
 class UnsupportedPlatformError(Exception):
     """Raised for a platform with no connector implementation yet
-    (PrestaShop, IdoSell - Phases 18-19)."""
+    (IdoSell - Phase 19)."""
 
 
 def build_connector(connection: Connection, credentials: dict[str, Any]) -> CommerceConnector:
@@ -30,6 +31,11 @@ def build_connector(connection: Connection, credentials: dict[str, Any]) -> Comm
             store_url=credentials["store_url"],
             client_id=credentials["client_id"],
             client_secret=credentials["client_secret"],
+        )
+    if connection.platform == ConnectionPlatform.PRESTASHOP:
+        return PrestaShopConnector(
+            store_url=credentials["store_url"],
+            api_key=credentials["api_key"],
         )
 
     raise UnsupportedPlatformError(

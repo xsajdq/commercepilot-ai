@@ -33,7 +33,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 15 — Recommendations** (daily scheduler tying agents together).
 - [x] **Phase 16 — Dashboard polish**.
 - [x] **Phase 17 — Shoper connector**.
-- [ ] **Phase 18 — PrestaShop connector**.
+- [x] **Phase 18 — PrestaShop connector**.
 - [ ] **Phase 19 — IdoSell connector** (own research first, don't force the
       WooCommerce-shaped abstraction).
 - [ ] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
@@ -937,3 +937,58 @@ its token remains valid). `packages/connectors` now at 65 tests (49 → 65);
 its "unsupported platform" test at `PRESTASHOP` now that Shoper has a
 real connector (12 tests, unchanged count). Frontend `npm run lint`/
 `typecheck`/`build` all pass with the new Shoper form fields.
+
+Phase 18 complete: `PrestaShopConnector`, the fourth real platform
+integration - PrestaShop is one of the most widely used open-source
+e-commerce platforms in Europe, so a real multi-store manager needs it
+alongside WooCommerce, Allegro, and Shoper.
+
+Confirmed against PrestaShop's official developer docs, its GitHub
+issue tracker, and its own published Postman collection
+(`PrestaShop/webservice-postman-examples` - an authoritative source
+straight from the platform vendor, not third-party inference like
+Phase 17's Shoper connector had to rely on). The most consequential
+confirmed fact: PrestaShop's Webservice can *output* JSON
+(`output_format=JSON`) but, as of 8.1, cannot *parse* JSON input at
+all - every POST/PUT/PATCH this connector sends is real XML regardless
+of the read format, built with the standard library's
+`xml.etree.ElementTree` (no new dependency). A second consequential
+fact: stock quantity is not a product field here - PrestaShop stores it
+in a wholly separate `stock_availables` resource keyed by `id_product`
+(auto-created alongside a new product). Unlike Shoper's shared-object
+risk (Phase 17), this is a structural separation, not a partial-update
+hazard to guard against: `update_price` and `update_stock` genuinely
+cannot collide, because they touch two different resources.
+
+The connector also handles PrestaShop's multi-language fields (`name`/
+`description` as a list of `{id, value}` per language, defaulting to
+language id `"1"` - the same "pick one locale" simplification
+`ShoperConnector` already established for its own multi-language
+translations dict) and its byte-upload image model (`POST
+/api/images/products/{id}` as `multipart/form-data` with the actual
+image bytes, fetched from the given URL first - a third distinct
+image-handling strategy in this package, after WooCommerce's
+array-of-URLs and Allegro's fetch-then-reference two-step).
+
+`packages/sync/cp_sync/connector_factory.py` gained the `PRESTASHOP`
+branch (`UnsupportedPlatformError` now only covers IdoSell - Phase 19);
+`apps/web`'s Connections page marked PrestaShop as supported with its
+credential fields (store URL, webservice API key); `apps/api` needed no
+route changes, same as every connector phase since Phase 15.
+
+Verified with `httpx.MockTransport` against a `FakePrestaShopAPI`
+standing in for a real store - the fake responds to reads in JSON and
+genuinely parses writes as XML (not just JSON with extra steps), so the
+tests exercise the real XML-building/parsing round-trip this connector
+depends on, including the multi-language `<name><language id="1">...`
+shape. 14 new tests in `packages/connectors/tests/test_prestashop_connector.py`
+bring that package to 79 tests (65 → 79); `packages/sync` gained a
+`test_build_prestashop_connector` test and repointed its "unsupported
+platform" test at `IDOSELL` (13 tests). Both packages' venvs rebuilt
+from scratch and pass. Verified against the real running stack:
+registered a tenant, created a real "prestashop" connection via the
+HTTP API, and triggered a real Celery sync - the worker correctly
+resolved `PrestaShopConnector` and made a real outbound request
+(failing gracefully against the fake store URL, the same sandbox-proxy
+403 pattern seen for every other connector's real-network verification
+in this environment). Frontend lint/typecheck/build all pass.

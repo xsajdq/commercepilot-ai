@@ -8,10 +8,10 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 17**
-(Shoper connector): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 18**
+(PrestaShop connector): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
-WooCommerce + Allegro + Shoper connectors, a sync engine, the AI tool system +
+WooCommerce + Allegro + Shoper + PrestaShop connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
 -> Executing -> Success/Failed`), a deterministic pricing engine, and
 six working agents (pricing, product content, listing publication,
@@ -44,7 +44,13 @@ e-commerce platform Shoper - the connector manages its own bearer-token
 auth internally (a caller supplies client ID/secret, same as
 WooCommerce's consumer key/secret), and its README documents exactly
 which parts of Shoper's API shape are confirmed vs. best-effort inferred
-(the official docs site was unreachable from this environment).
+(the official docs site was unreachable from this environment). Phase 18
+added `PrestaShopConnector`, the fourth real integration - unlike
+Shoper, PrestaShop's Webservice API could be confirmed against its own
+official docs and published Postman collection: it outputs JSON but
+cannot parse JSON input (every write is real XML), and stock quantity
+lives in its own separate `stock_availables` resource rather than on
+the product itself.
 
 ## Repository layout
 
@@ -56,7 +62,7 @@ apps/
 packages/
   shared/     cp_shared - the shared SQLAlchemy Base + mixins
   domain/     cp_domain - the e-commerce domain model (products, orders, ...)
-  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro/Shoper
+  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro/Shoper/PrestaShop
   sync/       cp_sync - the sync engine (retry/backoff, idempotent upsert)
   pricing/    cp_pricing - deterministic pricing engine (no AI, no deps)
   analytics/  cp_analytics - deterministic dashboard metrics (no AI, no deps)

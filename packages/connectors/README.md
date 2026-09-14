@@ -124,6 +124,47 @@ transparent-reauthentication behavior (one 401 on a cached token is
 absorbed by a single re-auth-and-retry, and a connector instance only
 authenticates once across multiple calls while its token stays valid).
 
+`PrestaShopConnector` (Phase 18) is the fourth real implementation,
+against PrestaShop's Webservice API (`{store_url}/api`) - confirmed
+against PrestaShop's official developer docs, GitHub issues, and its own
+published Postman collection (`PrestaShop/webservice-postman-examples`).
+Notes on its scope:
+
+- Auth is HTTP Basic with the webservice key as username and an empty
+  password.
+- Reads request `output_format=JSON`; a plain list request without
+  `display=full` returns bare ids only, so this connector always passes
+  `display=full`. Writes (POST/PUT/PATCH) always send an XML body
+  regardless - PrestaShop 8.1+ can output JSON but cannot parse JSON
+  *input*, and XML input works across every version, so this class never
+  attempts JSON writes.
+- Stock quantity is a genuinely separate architectural concern here, not
+  just a risk to guard against: PrestaShop stores it in its own
+  `stock_availables` resource keyed by `id_product` (one is
+  auto-created alongside a new product), never on the product resource
+  itself. `get_product`/`get_products` do a second lookup to merge it in;
+  `update_stock`/`create_product`'s stock handling and
+  `update_price`/`publish_offer`'s `PATCH` calls never touch each
+  other's resource, so there's no equivalent of Shoper's shared-object
+  risk to guard against - the separation is structural.
+- Multi-language fields (`name`, `description`) are read/written for
+  language id `"1"` only, the same "pick one locale" simplification as
+  `ShoperConnector`'s `pl_PL` default.
+- Image upload is `multipart/form-data` with the actual image bytes
+  (fetched from the given URL first), not a URL reference - a third
+  distinct image-handling strategy alongside WooCommerce's array-of-URLs
+  and Allegro's fetch-then-reference two-step.
+- `get_category_parameters` always returns `[]` (same documented
+  limitation as WooCommerce/Shoper) and pagination uses the standard "a
+  short page was the last page" rule rather than trusting an unconfirmed
+  total-count header.
+
+Tested against `tests/test_prestashop_connector.py`'s
+`FakePrestaShopAPI` via `httpx.MockTransport` - the fake responds to
+reads in JSON and parses writes as real XML (matching exactly what this
+connector sends), including a small XML builder/parser round-trip for
+the multi-language `<name><language id="1">...` shape.
+
 Run its tests standalone (no DB, no other services needed):
 
 ```bash
