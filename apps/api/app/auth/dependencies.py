@@ -73,3 +73,19 @@ def require_role(*roles: MembershipRole):
         return membership
 
     return _checker
+
+
+async def require_platform_admin(
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """A deliberately separate authorization axis from tenant membership
+    above - `/admin/*` routes gated on this never take a `tenant_id` from
+    the caller's own membership, only from the resource being looked up,
+    so this stays a bolt-on support capability rather than a second way
+    into the tenant model."""
+    if not user.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
+    return user

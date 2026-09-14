@@ -7,6 +7,7 @@ import {
   createConnection,
   listConnections,
   syncConnection,
+  testConnection,
   type ConnectionOut,
   type ConnectionPlatform,
 } from "@/lib/api";
@@ -25,10 +26,25 @@ const PLATFORMS: { value: ConnectionPlatform; label: string; sync: SyncSupport }
   { value: "idosell", label: "IdoSell", sync: "partial" },
 ];
 
+const CREDENTIAL_HELP: Record<ConnectionPlatform, string> = {
+  woocommerce:
+    "In your WordPress admin: WooCommerce → Settings → Advanced → REST API → Add key. Give it Read/Write permissions.",
+  allegro:
+    "Generate an access token for your app in Allegro's Developer Portal (apps.developer.allegro.pl) - use the client credentials or device-code flow for a seller account token.",
+  shoper:
+    "In your Shoper admin: Settings → API → Applications → Add application, to get a Client ID and Client Secret.",
+  prestashop:
+    "In your PrestaShop admin: Advanced Parameters → Webservice → Add new key. Grant it access to products, stock, and prices.",
+  idosell:
+    "In your IdoSell admin: Panel administracyjny → Ustawienia → Integracje → API, to generate an Admin API key.",
+};
+
 export default function ConnectionsPage() {
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [syncMessages, setSyncMessages] = useState<Record<string, string>>({});
+  const [testMessages, setTestMessages] = useState<Record<string, string>>({});
 
   const [platform, setPlatform] = useState<ConnectionPlatform>("woocommerce");
   const [name, setName] = useState("");
@@ -85,11 +101,29 @@ export default function ConnectionsPage() {
       setShoperClientSecret("");
       setPrestashopApiKey("");
       setIdosellApiKey("");
+      setNotice("Connection added - testing it against the real store now, refresh in a moment to see the result.");
       refresh();
+      setTimeout(refresh, 3000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleTest(connectionId: string) {
+    const token = getAccessToken();
+    if (!token) return;
+    setTestMessages((prev) => ({ ...prev, [connectionId]: "Testing…" }));
+    try {
+      await testConnection(token, connectionId);
+      setTestMessages((prev) => ({ ...prev, [connectionId]: "Checking - refresh in a moment" }));
+      setTimeout(refresh, 3000);
+    } catch (err) {
+      setTestMessages((prev) => ({
+        ...prev,
+        [connectionId]: err instanceof ApiError ? err.message : "Failed to queue the test",
+      }));
     }
   }
 
@@ -122,6 +156,12 @@ export default function ConnectionsPage() {
             Stores and marketplaces this workspace syncs products from.
           </p>
         </div>
+
+        {notice && (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {notice}
+          </p>
+        )}
 
         <div className="card overflow-hidden">
           <table className="w-full text-left text-sm">
@@ -156,9 +196,17 @@ export default function ConnectionsPage() {
                     {c.last_synced_at ? new Date(c.last_synced_at).toLocaleString() : "Never"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleSync(c.id)} className="btn-secondary">
-                      Sync now
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => handleTest(c.id)} className="btn-secondary">
+                        Test connection
+                      </button>
+                      <button onClick={() => handleSync(c.id)} className="btn-secondary">
+                        Sync now
+                      </button>
+                    </div>
+                    {testMessages[c.id] && (
+                      <p className="mt-1 text-xs text-slate-500">{testMessages[c.id]}</p>
+                    )}
                     {syncMessages[c.id] && (
                       <p className="mt-1 text-xs text-slate-500">{syncMessages[c.id]}</p>
                     )}
@@ -194,6 +242,9 @@ export default function ConnectionsPage() {
                 ))}
               </select>
             </Field>
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              {CREDENTIAL_HELP[platform]}
+            </p>
             <Field label="Name">
               <input
                 required

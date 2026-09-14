@@ -8,8 +8,8 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 21**
-(Production hardening): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 22**
+(Beta readiness): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
 WooCommerce + Allegro + Shoper + PrestaShop + IdoSell connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
@@ -75,7 +75,20 @@ per-IP rate limiting, security response headers, zero-downtime
 (verified with an actual drill against a real database), a load test,
 and a disaster-recovery runbook - see `docs/architecture/roadmap.md`'s
 Phase 21 writeup for what's real vs. what still needs an actual
-production server to exist.
+production server to exist. Phase 22's literal roadmap goal ("5 pilot
+stores") is a recruiting outcome this repo can't execute on its own, so
+it built the product/support surface real pilot merchants would need
+instead: `POST /connections` now runs a genuine pre-flight check against
+the real platform API (`worker.test_connection`) instead of optimistically
+assuming success, with a matching onboarding UX (per-platform credential
+help, a manual "Test connection" button) on the Connections page; a new,
+deliberately separate `is_platform_admin` authorization axis backs
+read-only cross-tenant support views (`/admin/tenants`,
+`/admin/tenants/{id}`) with no mutation route at all under `/admin/*`;
+and `docs/operations/pilot-onboarding.md` /
+`docs/operations/support-runbook.md` document the merchant-facing setup
+steps and the support triage flow built around those admin views plus
+Phase 21's observability stack.
 
 ## Repository layout
 

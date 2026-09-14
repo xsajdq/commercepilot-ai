@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    admin,
     analytics,
     billing,
     catalog,
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog.router)
     app.include_router(analytics.router)
     app.include_router(billing.router)
+    app.include_router(admin.router)
 
     return app
 

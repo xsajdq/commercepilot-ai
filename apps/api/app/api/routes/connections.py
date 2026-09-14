@@ -75,6 +75,13 @@ async def create_connection(
             status_code=status.HTTP_409_CONFLICT,
             detail="A connection with this name already exists",
         ) from exc
+
+    # Phase 22: don't just optimistically mark this CONNECTED and let a
+    # merchant find out it's actually broken up to 24h later at the next
+    # scheduled sync - fire a real pre-flight check immediately.
+    get_celery_client().send_task(
+        "worker.test_connection", args=[str(membership.tenant_id), str(connection.id)]
+    )
     return connection
 
 
@@ -94,5 +101,29 @@ async def trigger_sync(
 
     result = get_celery_client().send_task(
         "worker.sync_connection", args=[str(membership.tenant_id), str(connection.id)]
+    )
+    return SyncTriggeredResponse(task_id=result.id)
+
+
+@router.post("/{connection_id}/test", response_model=SyncTriggeredResponse)
+async def trigger_test(
+    connection_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    membership: Annotated[Membership, Depends(get_current_membership)],
+) -> SyncTriggeredResponse:
+    """Re-runs the same real pre-flight check `create_connection` fires
+    automatically - for when a merchant rotates a key on the platform's
+    own side and wants to confirm this workspace still works, without
+    waiting for (or forcing) a full product sync."""
+    connection = await db.scalar(
+        select(Connection).where(
+            Connection.id == connection_id, Connection.tenant_id == membership.tenant_id
+        )
+    )
+    if connection is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
+
+    result = get_celery_client().send_task(
+        "worker.test_connection", args=[str(membership.tenant_id), str(connection.id)]
     )
     return SyncTriggeredResponse(task_id=result.id)

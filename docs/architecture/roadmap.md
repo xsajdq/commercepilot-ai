@@ -39,8 +39,13 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
 - [x] **Phase 21 — Production hardening** (backups, monitoring, alerts,
       rate limiting, WAF, secret rotation, load testing, DR).
-- [ ] **Phase 22 — Beta** (5 pilot stores: 2 WooCommerce, 2 Allegro-heavy,
-      1 complex).
+- [x] **Phase 22 — Beta readiness** (5 pilot stores: 2 WooCommerce, 2
+      Allegro-heavy, 1 complex). Recruiting and onboarding real pilot
+      merchants is a business/operations activity this repo can't
+      execute on its own - what's buildable, and built, is the product
+      and support tooling that recruiting real merchants would need:
+      real pre-flight connection verification, onboarding UX, and
+      read-only cross-tenant support tooling for the beta period.
 
 Further-out planning, captured now but not actionable until the phases
 it depends on are current: `docs/architecture/product-vision.md` (what
@@ -1340,3 +1345,62 @@ changes this phase (production hardening is a backend/infra concern) so
 no frontend re-verification was needed. Every sub-phase's real-stack
 claim above was independently run against a real local Postgres/Redis/
 API/worker stack, not asserted from unit tests alone.
+
+**Phase 22 - Beta readiness.** The roadmap's literal Phase 22 ("5 pilot
+stores") names a recruiting/sales outcome, not something buildable from
+inside this repo - there's no real merchant to onboard from here. What
+this phase built instead is the product and support surface that
+recruiting real pilot merchants actually needs:
+
+**22a - real connection verification.** `POST /connections` used to
+optimistically mark a new connection `CONNECTED` without ever calling
+the real platform API - a merchant with a typo'd API key wouldn't find
+out until the next scheduled sync, up to 24h later. New
+`worker.test_connection` task (`apps/worker/worker/tasks/
+connection_health.py`) calls the connector's own `get_products(limit=1)`
+for a real pre-flight check, fired automatically right after a
+connection is created and re-runnable via a new `POST
+/connections/{id}/test` route. Distinguishes a clear "check your
+credentials" message (`ConnectorAuthError`) from other connector
+failures rather than one generic error string.
+
+**22b - Connections page onboarding UX.** Per-platform credential help
+text shown contextually as the merchant picks a platform in the "Add a
+connection" form; a "Test connection" button per row calling the same
+real check as 22a; a post-submit notice explaining that the real check
+runs in the background and to refresh in a moment. Verified against the
+real stack: a WooCommerce connection created with deliberately bogus
+credentials (`https://example.invalid`) correctly flipped to an error
+state with the "Authentication failed - check your credentials" message
+after the real background check ran.
+
+**22c - platform-admin role + admin API.** A new `User.is_platform_admin`
+boolean (migration `469e3ea0187f`) is a deliberately separate
+authorization axis from the tenant-membership system - gated by a new
+`require_platform_admin` dependency, never a `tenant_id` a caller
+controls. New read-only `GET /admin/tenants` (plan, subscription status,
+member/connection counts, latest AI job status per tenant) and `GET
+/admin/tenants/{id}` (members, connections with live status/error,
+last-10 AI jobs, last-10 recommendations) routes - no mutation route
+exists under `/admin/*` at all, so there is no way for a support session
+to act as a tenant, only to see what the tenant's own session would see.
+
+**22d - admin UI.** New `/admin/tenants` and `/admin/tenants/[id]` pages
+in `apps/web`, gated on `me.user.is_platform_admin` and only then shown
+in the sidebar. Verified against the real stack with two independent
+tenants (one promoted to platform admin, one an ordinary merchant with a
+real connection) plus the accumulated tenant data from every prior
+phase's own real-stack testing this session: the list correctly showed
+every tenant's real plan/member/connection/AI-job state at once,
+including connection-error counts and failed-job badges, and the detail
+page correctly showed a specific tenant's members, connections, and
+recent activity.
+
+**22e - operations docs.** `docs/operations/pilot-onboarding.md` (the
+per-platform credential steps a real onboarding call would walk a
+merchant through, plus what "connected" now actually means after 22a)
+and `docs/operations/support-runbook.md` (how to use the 22c/22d admin
+views together with Phase 21's observability stack to triage a
+merchant's report, and what support explicitly cannot do - no
+impersonation, no direct-SQL "fixes" beyond the one sanctioned
+`is_platform_admin` promotion).

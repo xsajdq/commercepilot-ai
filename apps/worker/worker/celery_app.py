@@ -25,6 +25,7 @@ app = Celery(
     include=[
         "worker.tasks.health",
         "worker.tasks.sync",
+        "worker.tasks.connection_health",
         "worker.tasks.pricing",
         "worker.tasks.product_content",
         "worker.tasks.listing",

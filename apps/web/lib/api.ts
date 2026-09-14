@@ -84,7 +84,7 @@ export type LoginResponse = {
 };
 
 export type MeResponse = {
-  user: { id: string; email: string; full_name: string };
+  user: { id: string; email: string; full_name: string; is_platform_admin: boolean };
   tenant: TenantOut;
   role: string;
 };
@@ -211,6 +211,13 @@ export function createConnection(
 
 export function syncConnection(token: string, connectionId: string): Promise<TaskTriggeredResponse> {
   return request(`/connections/${connectionId}/sync`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
+export function testConnection(token: string, connectionId: string): Promise<TaskTriggeredResponse> {
+  return request(`/connections/${connectionId}/test`, {
     method: "POST",
     headers: authHeaders(token),
   });
@@ -410,4 +417,72 @@ export function createCheckoutSession(
 
 export function createPortalSession(token: string): Promise<{ portal_url: string }> {
   return request("/billing/portal", { method: "POST", headers: authHeaders(token) });
+}
+
+export type AdminTenantSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  plan: PlanTier;
+  subscription_status: SubscriptionStatus;
+  member_count: number;
+  connection_count: number;
+  connection_error_count: number;
+  latest_ai_job_status: string | null;
+  latest_ai_job_at: string | null;
+};
+
+export type AdminMemberOut = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+};
+
+export type AdminConnectionOut = {
+  id: string;
+  platform: ConnectionPlatform;
+  name: string;
+  status: ConnectionStatus;
+  last_synced_at: string | null;
+  last_error: string | null;
+};
+
+export type AdminAIJobOut = {
+  id: string;
+  agent_type: string;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type AdminRecommendationOut = {
+  id: string;
+  type: string;
+  risk_level: string;
+  status: string;
+  title: string;
+  created_at: string;
+};
+
+export type AdminTenantDetail = {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  plan: PlanTier;
+  subscription_status: SubscriptionStatus;
+  members: AdminMemberOut[];
+  connections: AdminConnectionOut[];
+  recent_ai_jobs: AdminAIJobOut[];
+  recent_recommendations: AdminRecommendationOut[];
+};
+
+export function listAdminTenants(token: string): Promise<AdminTenantSummary[]> {
+  return request("/admin/tenants", { headers: authHeaders(token) });
+}
+
+export function getAdminTenantDetail(token: string, tenantId: string): Promise<AdminTenantDetail> {
+  return request(`/admin/tenants/${tenantId}`, { headers: authHeaders(token) });
 }

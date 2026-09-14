@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Navigation,
+  ShieldCheck,
 } from "lucide-react";
 
 import { fetchMe, type MeResponse } from "@/lib/api";
@@ -111,7 +112,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-          {NAV_ITEMS.map((item) => {
+          {(me.user.is_platform_admin
+            ? [...NAV_ITEMS, { href: "/admin/tenants", label: "Admin", icon: ShieldCheck }]
+            : NAV_ITEMS
+          ).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (

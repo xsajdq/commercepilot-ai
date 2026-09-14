@@ -38,6 +38,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     full_name: str
+    is_platform_admin: bool
 
     model_config = {"from_attributes": True}
 
