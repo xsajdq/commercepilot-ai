@@ -1,8 +1,10 @@
 import asyncio
 import uuid
+from datetime import UTC, datetime
 
 from cp_ai.agents import build_product_content_proposal
 from cp_ai.providers import AIProvider, AnthropicProvider
+from cp_domain.ai_job import AIJob, AIJobStatus
 from cp_domain.product import Product
 from cp_domain.recommendation import Recommendation, RecommendationStatus, RecommendationType
 from cp_policies import propose_recommendation, submit_for_approval
@@ -10,6 +12,7 @@ from sqlalchemy import select
 
 from worker.ai_config import get_anthropic_api_key, get_anthropic_model
 from worker.celery_app import app
+from worker.cost_guard import check_tenant_ai_budget, record_usage_on_job
 from worker.db import session_scope
 
 
@@ -62,7 +65,47 @@ async def _generate_product_content_recommendation(
         if existing is not None:
             return {"proposed": False, "reason": "a content recommendation is already pending"}
 
-        proposal = await build_product_content_proposal(provider=_get_provider(), product=product)
+        # Phase 20: this task makes a real (billed) provider call but
+        # didn't record it anywhere until now - it gets the same AIJob +
+        # cost-guard treatment as the catalog/analytics agents, so the
+        # guard actually sees every tenant's real AI spend, not just two
+        # of its three sources.
+        job = AIJob(
+            tenant_id=tenant_id,
+            agent_type="product_content",
+            status=AIJobStatus.RUNNING,
+            started_at=datetime.now(UTC),
+        )
+        db.add(job)
+        await db.commit()
+
+        budget = await check_tenant_ai_budget(db, tenant_id)
+        if budget.is_exceeded:
+            job.status = AIJobStatus.FAILED
+            job.error_message = (
+                f"AI budget exceeded for the {budget.plan} plan this period "
+                f"(spent {budget.spent} of {budget.budget})"
+            )
+            job.finished_at = datetime.now(UTC)
+            await db.commit()
+            return {"proposed": False, "reason": job.error_message, "job_id": str(job.id)}
+
+        try:
+            proposal, usage = await build_product_content_proposal(
+                provider=_get_provider(), product=product
+            )
+        except Exception as exc:  # noqa: BLE001 - always record the failure on the job itself
+            job.status = AIJobStatus.FAILED
+            job.error_message = str(exc)
+            job.finished_at = datetime.now(UTC)
+            await db.commit()
+            raise
+
+        job.status = AIJobStatus.SUCCEEDED
+        job.finished_at = datetime.now(UTC)
+        job.output_payload = {"title": proposal.title, "reason": proposal.reason}
+        record_usage_on_job(job, usage=usage, model=get_anthropic_model())
+        await db.commit()
 
         recommendation = await propose_recommendation(
             db,
@@ -78,4 +121,8 @@ async def _generate_product_content_recommendation(
         )
         await submit_for_approval(db, recommendation)
 
-        return {"proposed": True, "recommendation_id": str(recommendation.id)}
+        return {
+            "proposed": True,
+            "recommendation_id": str(recommendation.id),
+            "job_id": str(job.id),
+        }

@@ -3,6 +3,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
+from cp_domain.subscription import Subscription
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -70,6 +71,10 @@ async def register(
 
     membership = Membership(user_id=user.id, tenant_id=tenant.id, role=MembershipRole.OWNER)
     db.add(membership)
+    # Every tenant has exactly one Subscription from the moment it
+    # exists (Phase 20) - defaults to the free plan, never a nullable
+    # "no subscription yet" case callers have to special-case.
+    db.add(Subscription(tenant_id=tenant.id))
     membership.tenant = tenant
     membership.user = user
 

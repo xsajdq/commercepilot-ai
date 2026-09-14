@@ -1,10 +1,12 @@
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from cp_domain.ai_job import AIJob, AIJobStatus
 from cp_domain.offer import Offer, OfferStatus
 from cp_domain.recommendation import RecommendationType, RiskLevel
+from cp_domain.subscription import PlanTier, Subscription
 from cp_policies import propose_recommendation, submit_for_approval
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -798,3 +800,170 @@ class TestAnalyticsRoutes:
         bob_list = await client.get("/analytics/narratives", headers=_auth(bob_token))
 
         assert bob_list.json() == []
+
+
+class TestBillingRoutes:
+    async def test_defaults_to_the_free_plan_with_nothing_spent(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.get("/billing", headers=_auth(token))
+
+        assert result.status_code == 200, result.text
+        body = result.json()
+        assert body["plan"] == "free"
+        assert body["status"] == "active"
+        assert body["budget"] == "1.00"
+        assert body["spent_this_period"] == "0"
+        assert body["is_exceeded"] is False
+        assert body["has_stripe_subscription"] is False
+
+    async def test_checkout_rejects_the_free_plan(self, client: AsyncClient) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.post(
+            "/billing/checkout", json={"plan": "free"}, headers=_auth(token)
+        )
+
+        assert result.status_code == 400
+
+    async def test_checkout_is_unavailable_when_stripe_is_not_configured(
+        self, client: AsyncClient
+    ) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.post(
+            "/billing/checkout", json={"plan": "starter"}, headers=_auth(token)
+        )
+
+        assert result.status_code == 503
+
+    async def test_portal_is_unavailable_when_stripe_is_not_configured(
+        self, client: AsyncClient
+    ) -> None:
+        token = await _register(client, ALICE)
+
+        result = await client.post("/billing/portal", headers=_auth(token))
+
+        assert result.status_code == 503
+
+    async def test_webhook_is_unavailable_when_stripe_is_not_configured(
+        self, client: AsyncClient
+    ) -> None:
+        result = await client.post(
+            "/billing/webhook", content=b"{}", headers={"stripe-signature": "x"}
+        )
+
+        assert result.status_code == 503
+
+    async def test_webhook_rejects_an_invalid_signature(
+        self, client: AsyncClient, monkeypatch
+    ) -> None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        monkeypatch.setattr(settings, "stripe_secret_key", "sk_test_dummy")
+        monkeypatch.setattr(settings, "stripe_webhook_secret", "whsec_test")
+
+        def _boom(*args, **kwargs):
+            raise ValueError("bad signature")
+
+        fake_client = SimpleNamespace(Webhook=SimpleNamespace(construct_event=_boom))
+        monkeypatch.setattr("app.api.routes.billing.get_stripe_client", lambda: fake_client)
+
+        result = await client.post(
+            "/billing/webhook", content=b"{}", headers={"stripe-signature": "x"}
+        )
+
+        assert result.status_code == 400
+
+    async def test_webhook_subscription_updated_syncs_plan_and_status(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch
+    ) -> None:
+        from app.core.config import get_settings
+
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        # Seed the subscription row as if `create_checkout_session` had
+        # already linked this tenant to a real Stripe customer.
+        await client.get("/billing", headers=_auth(token))
+        subscription = await db_session.scalar(
+            select(Subscription).where(Subscription.tenant_id == tenant_id)
+        )
+        subscription.stripe_customer_id = "cus_123"
+        await db_session.commit()
+
+        settings = get_settings()
+        monkeypatch.setattr(settings, "stripe_secret_key", "sk_test_dummy")
+        monkeypatch.setattr(settings, "stripe_webhook_secret", "whsec_test")
+        monkeypatch.setattr(settings, "stripe_price_id_starter", "price_starter")
+
+        event = {
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "customer": "cus_123",
+                    "id": "sub_123",
+                    "status": "active",
+                    "items": {"data": [{"price": {"id": "price_starter"}}]},
+                    "current_period_end": 1893456000,
+                }
+            },
+        }
+        fake_client = SimpleNamespace(
+            Webhook=SimpleNamespace(construct_event=lambda *a, **k: event)
+        )
+        monkeypatch.setattr("app.api.routes.billing.get_stripe_client", lambda: fake_client)
+
+        webhook_result = await client.post(
+            "/billing/webhook", content=b"{}", headers={"stripe-signature": "x"}
+        )
+        assert webhook_result.status_code == 200, webhook_result.text
+
+        status_result = await client.get("/billing", headers=_auth(token))
+        body = status_result.json()
+        assert body["plan"] == "starter"
+        assert body["status"] == "active"
+        assert body["has_stripe_subscription"] is True
+
+    async def test_webhook_subscription_deleted_downgrades_to_free(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch
+    ) -> None:
+        from app.core.config import get_settings
+
+        token = await _register(client, ALICE)
+        me = await client.get("/auth/me", headers=_auth(token))
+        tenant_id = uuid.UUID(me.json()["tenant"]["id"])
+
+        await client.get("/billing", headers=_auth(token))
+        subscription = await db_session.scalar(
+            select(Subscription).where(Subscription.tenant_id == tenant_id)
+        )
+        subscription.plan = PlanTier.STARTER
+        subscription.stripe_customer_id = "cus_456"
+        subscription.stripe_subscription_id = "sub_456"
+        await db_session.commit()
+
+        settings = get_settings()
+        monkeypatch.setattr(settings, "stripe_secret_key", "sk_test_dummy")
+        monkeypatch.setattr(settings, "stripe_webhook_secret", "whsec_test")
+
+        event = {
+            "type": "customer.subscription.deleted",
+            "data": {"object": {"id": "sub_456"}},
+        }
+        fake_client = SimpleNamespace(
+            Webhook=SimpleNamespace(construct_event=lambda *a, **k: event)
+        )
+        monkeypatch.setattr("app.api.routes.billing.get_stripe_client", lambda: fake_client)
+
+        webhook_result = await client.post(
+            "/billing/webhook", content=b"{}", headers={"stripe-signature": "x"}
+        )
+        assert webhook_result.status_code == 200, webhook_result.text
+
+        status_result = await client.get("/billing", headers=_auth(token))
+        body = status_result.json()
+        assert body["plan"] == "free"
+        assert body["status"] == "canceled"

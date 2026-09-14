@@ -1,5 +1,5 @@
 from cp_ai.providers.anthropic_provider import AnthropicProvider
-from cp_ai.providers.base import AIProvider, AIProviderError
+from cp_ai.providers.base import AIProvider, AIProviderError, GeneratedOutput, TokenUsage
 from cp_ai.providers.fake import FakeAIProvider, RecordedCall
 
 __all__ = [
@@ -7,5 +7,7 @@ __all__ = [
     "AIProviderError",
     "AnthropicProvider",
     "FakeAIProvider",
+    "GeneratedOutput",
     "RecordedCall",
+    "TokenUsage",
 ]

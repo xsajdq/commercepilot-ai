@@ -33,6 +33,19 @@ class Settings(BaseSettings):
 
     sentry_dsn: str | None = None
 
+    # Stripe (Phase 20). None in dev/test means "billing isn't configured" -
+    # routes that need it degrade to a 503 rather than crashing (CLAUDE.md
+    # #9's "never guess" spirit applies to config too: we don't invent a
+    # fake key that would silently fail against the real Stripe API).
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    # Stripe Price ids for the two paid plans - set per-environment since
+    # they differ between Stripe test mode and live mode.
+    stripe_price_id_starter: str | None = None
+    stripe_price_id_pro: str | None = None
+    # Where Stripe Checkout/Billing Portal send the browser back to.
+    billing_return_url: str = "http://localhost:3000/billing"
+
 
 @lru_cache
 def get_settings() -> Settings:

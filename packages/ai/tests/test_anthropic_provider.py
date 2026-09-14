@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from cp_ai.providers import AIProviderError, AnthropicProvider
+from cp_ai.providers import AIProviderError, AnthropicProvider, TokenUsage
 
 
 def _response(*, content: list[dict], stop_reason: str = "tool_use") -> httpx.Response:
@@ -53,7 +53,8 @@ class TestAnthropicProvider:
             schema_name="product_content",
         )
 
-        assert result == {"title": "Great Widget"}
+        assert result.data == {"title": "Great Widget"}
+        assert result.usage == TokenUsage(input_tokens=10, output_tokens=5)
         assert captured["model"] == "claude-sonnet-5"
         assert captured["system"] == "You are a copywriter."
         assert captured["messages"] == [{"role": "user", "content": "Write about SKU-1."}]

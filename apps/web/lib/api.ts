@@ -379,3 +379,35 @@ export function triggerDashboardNarrative(token: string): Promise<TaskTriggeredR
 export function listDashboardNarratives(token: string): Promise<AnalyticsReportOut[]> {
   return request("/analytics/narratives", { headers: authHeaders(token) });
 }
+
+export type PlanTier = "free" | "starter" | "pro";
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "incomplete";
+
+export type BillingStatusOut = {
+  plan: PlanTier;
+  status: SubscriptionStatus;
+  budget: string;
+  spent_this_period: string;
+  remaining: string;
+  is_exceeded: boolean;
+  has_stripe_subscription: boolean;
+};
+
+export function getBillingStatus(token: string): Promise<BillingStatusOut> {
+  return request("/billing", { headers: authHeaders(token) });
+}
+
+export function createCheckoutSession(
+  token: string,
+  plan: "starter" | "pro",
+): Promise<{ checkout_url: string }> {
+  return request("/billing/checkout", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export function createPortalSession(token: string): Promise<{ portal_url: string }> {
+  return request("/billing/portal", { method: "POST", headers: authHeaders(token) });
+}

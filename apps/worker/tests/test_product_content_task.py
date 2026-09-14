@@ -1,11 +1,13 @@
 import asyncio
 import uuid
+from decimal import Decimal
 
-from cp_ai.providers import FakeAIProvider
+from cp_ai.providers import FakeAIProvider, TokenUsage
+from cp_domain.ai_job import AIJob, AIJobStatus
 from cp_domain.recommendation import Recommendation, RecommendationStatus, RecommendationType
 from sqlalchemy import func, select
 
-from tests.conftest import make_product, make_tenant
+from tests.conftest import make_ai_job, make_product, make_tenant
 from worker.db import async_session_factory
 from worker.tasks.product_content import generate_product_content_recommendation
 
@@ -99,3 +101,43 @@ class TestGenerateProductContentRecommendation:
         result = generate_product_content_recommendation.run(str(tenant_id), str(uuid.uuid4()))
 
         assert result == {"proposed": False, "reason": "product not found"}
+
+    def test_records_real_token_usage_and_cost_on_the_job(self, monkeypatch) -> None:
+        tenant_id = make_tenant()
+        product_id = make_product(tenant_id, sku="SKU-1")
+        monkeypatch.setattr(
+            "worker.tasks.product_content._get_provider",
+            lambda: FakeAIProvider(
+                _FAKE_RESPONSE, usage=TokenUsage(input_tokens=800, output_tokens=200)
+            ),
+        )
+        monkeypatch.setattr(
+            "worker.tasks.product_content.get_anthropic_model", lambda: "claude-sonnet-5"
+        )
+
+        result = generate_product_content_recommendation.run(str(tenant_id), str(product_id))
+
+        async def _get_job() -> AIJob:
+            async with async_session_factory() as db:
+                return await db.get(AIJob, uuid.UUID(result["job_id"]))
+
+        job = asyncio.run(_get_job())
+        assert job.status is AIJobStatus.SUCCEEDED
+        assert job.agent_type == "product_content"
+        assert job.tokens_used == 1000
+        assert job.cost_estimate is not None
+        assert job.cost_estimate > 0
+
+    def test_blocked_when_the_tenant_is_over_the_free_plan_budget(self, monkeypatch) -> None:
+        tenant_id = make_tenant()
+        product_id = make_product(tenant_id, sku="SKU-1")
+        make_ai_job(tenant_id, cost_estimate=Decimal("1.00"))
+        provider = FakeAIProvider(_FAKE_RESPONSE)
+        monkeypatch.setattr("worker.tasks.product_content._get_provider", lambda: provider)
+
+        result = generate_product_content_recommendation.run(str(tenant_id), str(product_id))
+
+        assert result["proposed"] is False
+        assert "budget exceeded" in result["reason"]
+        assert provider.calls == []
+        assert _count_recommendations() == 0

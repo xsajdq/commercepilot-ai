@@ -9,6 +9,7 @@ import {
   Package,
   ClipboardList,
   ListChecks,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/catalog", label: "Catalog", icon: ClipboardList },
   { href: "/recommendations", label: "Recommendations", icon: ListChecks },
+  { href: "/billing", label: "Billing", icon: CreditCard },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,7 @@
 from anthropic import APIError, AsyncAnthropic
 from httpx import AsyncClient
 
-from cp_ai.providers.base import AIProvider, AIProviderError
+from cp_ai.providers.base import AIProvider, AIProviderError, GeneratedOutput, TokenUsage
 
 
 class AnthropicProvider(AIProvider):
@@ -29,7 +29,7 @@ class AnthropicProvider(AIProvider):
 
     async def generate_structured(
         self, *, system_prompt: str, user_prompt: str, schema: dict, schema_name: str = "output"
-    ) -> dict:
+    ) -> GeneratedOutput:
         try:
             response = await self._client.messages.create(
                 model=self._model,
@@ -48,9 +48,13 @@ class AnthropicProvider(AIProvider):
         except APIError as exc:
             raise AIProviderError(f"Anthropic API call failed: {exc}") from exc
 
+        usage = TokenUsage(
+            input_tokens=response.usage.input_tokens, output_tokens=response.usage.output_tokens
+        )
+
         for block in response.content:
             if block.type == "tool_use" and block.name == schema_name:
-                return block.input
+                return GeneratedOutput(data=block.input, usage=usage)
 
         raise AIProviderError(
             f"Anthropic response did not include the expected {schema_name!r} tool call "

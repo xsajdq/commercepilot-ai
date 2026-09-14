@@ -21,16 +21,19 @@ sentry-sdk[fastapi]==2.19.2
 # - it never imports apps/worker's task modules, so no `include=[...]`
 # worker config is needed here, just the client library.
 celery[redis]==5.4.0
+stripe==11.4.1
 
 # Local packages (see packages/shared, packages/domain, packages/pricing,
-# packages/analytics, packages/ai, packages/policies) - install order
-# matters: each depends on the ones above it. apps/api needs the
-# AI/approval packages for real now (the recommendations API resolves
+# packages/analytics, packages/ai, packages/policies, packages/billing) -
+# install order matters: each depends on the ones above it. apps/api needs
+# the AI/approval packages for real now (the recommendations API resolves
 # and runs approved tool calls), not just for its test suite; it also
-# computes the live analytics dashboard directly via cp_analytics.
+# computes the live analytics dashboard directly via cp_analytics, and
+# checks/reports real AI spend via cp_billing (Phase 20).
 -e ../../packages/shared
 -e ../../packages/domain
 -e ../../packages/pricing
 -e ../../packages/analytics
 -e ../../packages/ai
 -e ../../packages/policies
+-e ../../packages/billing

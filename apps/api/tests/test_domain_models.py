@@ -19,6 +19,7 @@ from cp_domain.recommendation import (
 )
 from cp_domain.review import Review
 from cp_domain.stock import Stock
+from cp_domain.subscription import PlanTier, Subscription, SubscriptionStatus
 from cp_domain.variant import Variant
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -290,3 +291,71 @@ class TestRecommendationApprovalAudit:
         assert loaded is not None
         assert loaded.before == {"amount": "149.00"}
         assert loaded.after == {"amount": "129.00"}
+
+
+class TestSubscription:
+    async def test_defaults_to_the_free_plan_and_active_status(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await _make_tenant(db_session)
+        subscription = Subscription(tenant_id=tenant.id)
+        db_session.add(subscription)
+        await db_session.commit()
+
+        loaded = await db_session.get(Subscription, subscription.id)
+        assert loaded is not None
+        assert loaded.plan is PlanTier.FREE
+        assert loaded.status is SubscriptionStatus.ACTIVE
+        assert loaded.stripe_customer_id is None
+        assert loaded.stripe_subscription_id is None
+        assert loaded.current_period_end is None
+
+    async def test_a_tenant_cannot_have_two_subscriptions(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await _make_tenant(db_session)
+        db_session.add(Subscription(tenant_id=tenant.id))
+        await db_session.commit()
+
+        db_session.add(Subscription(tenant_id=tenant.id))
+        with pytest.raises(IntegrityError):
+            await db_session.commit()
+        await db_session.rollback()
+
+    async def test_two_tenants_cannot_share_a_stripe_subscription_id(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant_a = await _make_tenant(db_session, name="Tenant A")
+        tenant_b = await _make_tenant(db_session, name="Tenant B")
+        db_session.add(
+            Subscription(tenant_id=tenant_a.id, stripe_subscription_id="sub_shared")
+        )
+        await db_session.commit()
+
+        db_session.add(
+            Subscription(tenant_id=tenant_b.id, stripe_subscription_id="sub_shared")
+        )
+        with pytest.raises(IntegrityError):
+            await db_session.commit()
+        await db_session.rollback()
+
+    async def test_can_be_upgraded_to_a_paid_plan_with_stripe_ids(
+        self, db_session: AsyncSession
+    ) -> None:
+        tenant = await _make_tenant(db_session)
+        subscription = Subscription(tenant_id=tenant.id)
+        db_session.add(subscription)
+        await db_session.commit()
+
+        subscription.plan = PlanTier.PRO
+        subscription.status = SubscriptionStatus.ACTIVE
+        subscription.stripe_customer_id = "cus_123"
+        subscription.stripe_subscription_id = "sub_123"
+        subscription.current_period_end = datetime(2026, 1, 1, tzinfo=UTC)
+        await db_session.commit()
+
+        loaded = await db_session.get(Subscription, subscription.id)
+        assert loaded is not None
+        assert loaded.plan is PlanTier.PRO
+        assert loaded.stripe_customer_id == "cus_123"
+        assert loaded.stripe_subscription_id == "sub_123"

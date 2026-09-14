@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from worker.ai_config import get_anthropic_api_key, get_anthropic_model
 from worker.celery_app import app
+from worker.cost_guard import check_tenant_ai_budget, record_usage_on_job
 from worker.db import session_scope
 
 
@@ -125,9 +126,25 @@ async def _generate_dashboard_narrative(tenant_id: uuid.UUID) -> dict:
         db.add(job)
         await db.commit()
 
+        # Phase 20's cost guard: check the tenant's real AI spend this
+        # period against their plan's budget before making a real
+        # (billed) provider call - never after.
+        budget = await check_tenant_ai_budget(db, tenant_id)
+        if budget.is_exceeded:
+            job.status = AIJobStatus.FAILED
+            job.error_message = (
+                f"AI budget exceeded for the {budget.plan} plan this period "
+                f"(spent {budget.spent} of {budget.budget})"
+            )
+            job.finished_at = datetime.now(UTC)
+            await db.commit()
+            return {"job_id": str(job.id), "blocked": True, "reason": job.error_message}
+
         try:
             metrics = await _load_metrics(db, tenant_id)
-            narrative = await build_dashboard_narrative(provider=_get_provider(), metrics=metrics)
+            narrative, usage = await build_dashboard_narrative(
+                provider=_get_provider(), metrics=metrics
+            )
         except Exception as exc:  # noqa: BLE001 - always record the failure on the job itself
             job.status = AIJobStatus.FAILED
             job.error_message = str(exc)
@@ -141,6 +158,7 @@ async def _generate_dashboard_narrative(tenant_id: uuid.UUID) -> dict:
             "metrics": _metrics_to_payload(metrics),
             "narrative": narrative.model_dump(),
         }
+        record_usage_on_job(job, usage=usage, model=get_anthropic_model())
         await db.commit()
 
         return {"job_id": str(job.id), "summary": narrative.summary}

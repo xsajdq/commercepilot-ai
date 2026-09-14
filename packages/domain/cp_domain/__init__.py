@@ -21,6 +21,7 @@ from cp_domain.recommendation import (
 )
 from cp_domain.review import Review
 from cp_domain.stock import Stock
+from cp_domain.subscription import PlanTier, Subscription, SubscriptionStatus
 from cp_domain.variant import Variant
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "Order",
     "OrderItem",
     "OrderStatus",
+    "PlanTier",
     "Price",
     "Product",
     "ProductStatus",
@@ -52,5 +54,7 @@ __all__ = [
     "Review",
     "RiskLevel",
     "Stock",
+    "Subscription",
+    "SubscriptionStatus",
     "Variant",
 ]

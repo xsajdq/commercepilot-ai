@@ -21,6 +21,7 @@ COPY packages/pricing packages/pricing
 COPY packages/analytics packages/analytics
 COPY packages/ai packages/ai
 COPY packages/policies packages/policies
+COPY packages/billing packages/billing
 # requirements.txt's `-e ../../packages/...` lines are resolved relative
 # to pip's current working directory, not the requirements file's own
 # location - `cd` into apps/api first so they land on packages/ above.

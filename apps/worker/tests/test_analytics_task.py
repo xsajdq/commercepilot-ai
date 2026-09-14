@@ -2,11 +2,17 @@ import asyncio
 import uuid
 from decimal import Decimal
 
-from cp_ai.providers import FakeAIProvider
+from cp_ai.providers import FakeAIProvider, TokenUsage
 from cp_domain.ai_job import AIJob, AIJobStatus
 from sqlalchemy import select
 
-from tests.conftest import make_connection, make_offer_with_price, make_product, make_tenant
+from tests.conftest import (
+    make_ai_job,
+    make_connection,
+    make_offer_with_price,
+    make_product,
+    make_tenant,
+)
 from worker.db import async_session_factory
 from worker.tasks.analytics import generate_dashboard_narrative
 
@@ -110,3 +116,53 @@ class TestGenerateDashboardNarrative:
         job = asyncio.run(_find_job())
         assert job.status is AIJobStatus.FAILED
         assert "provider exploded" in job.error_message
+
+    def test_records_real_token_usage_and_cost_on_the_job(self, monkeypatch) -> None:
+        tenant_id = make_tenant()
+        monkeypatch.setattr(
+            "worker.tasks.analytics._get_provider",
+            lambda: FakeAIProvider(
+                _FAKE_RESPONSE, usage=TokenUsage(input_tokens=1000, output_tokens=500)
+            ),
+        )
+        monkeypatch.setattr("worker.tasks.analytics.get_anthropic_model", lambda: "claude-sonnet-5")
+
+        result = generate_dashboard_narrative.run(str(tenant_id))
+
+        job = _get_job(result["job_id"])
+        assert job.tokens_used == 1500
+        assert job.ai_provider == "anthropic"
+        assert job.ai_model == "claude-sonnet-5"
+        assert job.cost_estimate is not None
+        assert job.cost_estimate > 0
+
+    def test_blocked_when_the_tenant_is_over_the_free_plan_budget(self, monkeypatch) -> None:
+        tenant_id = make_tenant()
+        # The free plan's whole monthly budget is $1.00 (cp_billing.plans) -
+        # one prior job at exactly that already exhausts it.
+        make_ai_job(tenant_id, cost_estimate=Decimal("1.00"))
+        provider = FakeAIProvider(_FAKE_RESPONSE)
+        monkeypatch.setattr("worker.tasks.analytics._get_provider", lambda: provider)
+
+        result = generate_dashboard_narrative.run(str(tenant_id))
+
+        assert result["blocked"] is True
+        assert "budget exceeded" in result["reason"]
+        assert provider.calls == []  # never actually called - no billed request happened
+
+        job = _get_job(result["job_id"])
+        assert job.status is AIJobStatus.FAILED
+        assert "budget exceeded" in job.error_message
+
+    def test_not_blocked_when_comfortably_under_budget(self, monkeypatch) -> None:
+        tenant_id = make_tenant()
+        make_ai_job(tenant_id, cost_estimate=Decimal("0.01"))
+        monkeypatch.setattr(
+            "worker.tasks.analytics._get_provider", lambda: FakeAIProvider(_FAKE_RESPONSE)
+        )
+
+        result = generate_dashboard_narrative.run(str(tenant_id))
+
+        assert "blocked" not in result
+        job = _get_job(result["job_id"])
+        assert job.status is AIJobStatus.SUCCEEDED

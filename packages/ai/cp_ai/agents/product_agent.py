@@ -6,7 +6,7 @@ from cp_domain.product import Product
 from cp_domain.recommendation import RecommendationType, RiskLevel
 from pydantic import BaseModel
 
-from cp_ai.providers.base import AIProvider
+from cp_ai.providers.base import AIProvider, TokenUsage
 from cp_ai.tools.builtin.product_tools import update_product_content_tool
 
 _SPEC_FIELDS = ("ean", "weight_kg", "dimensions_cm", "brand", "category")
@@ -57,7 +57,7 @@ def _known_specs(product: Product, fields: tuple[str, ...]) -> dict[str, str]:
 
 async def build_product_content_proposal(
     *, provider: AIProvider, product: Product, spec_fields: tuple[str, ...] = _SPEC_FIELDS
-) -> ProductContentProposal:
+) -> tuple[ProductContentProposal, TokenUsage | None]:
     """Decides what listing content to propose for a product, using
     `provider` to generate a title/description/bullet points - and,
     deterministically in this function, never in the model's hands,
@@ -82,20 +82,20 @@ async def build_product_content_proposal(
         f"Specifications with no known value - do not guess these: {unknown}"
     )
 
-    raw = await provider.generate_structured(
+    output = await provider.generate_structured(
         system_prompt=_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         schema=ProductContent.model_json_schema(),
         schema_name="product_content",
     )
-    content = ProductContent.model_validate(raw)
+    content = ProductContent.model_validate(output.data)
 
     for field in unknown:
         content.specifications[field] = "UNKNOWN"
 
     risk_level = RiskLevel(update_product_content_tool().permission.risk_level.value)
 
-    return ProductContentProposal(
+    proposal = ProductContentProposal(
         tool_name="update_product_content",
         tool_arguments={
             "sku": product.sku,
@@ -116,3 +116,4 @@ async def build_product_content_proposal(
             f"Specifications left UNKNOWN (no source data): {', '.join(unknown) or 'none'}."
         ),
     )
+    return proposal, output.usage

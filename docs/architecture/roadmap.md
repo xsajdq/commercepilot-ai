@@ -36,7 +36,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 18 — PrestaShop connector**.
 - [x] **Phase 19 — IdoSell connector** (own research first, don't force the
       WooCommerce-shaped abstraction).
-- [ ] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
+- [x] **Phase 20 — Billing** (Stripe subscriptions + AI usage/cost guard).
 - [ ] **Phase 21 — Production hardening** (backups, monitoring, alerts,
       rate limiting, WAF, secret rotation, load testing, DR).
 - [ ] **Phase 22 — Beta** (5 pilot stores: 2 WooCommerce, 2 Allegro-heavy,
@@ -1063,3 +1063,128 @@ With Phase 19 done, every connector phase from the original roadmap
 IdoSell are all real, if not all equally complete - the platform gap
 that remains is now IdoSell's own write-path schema, not a missing
 connector.
+
+## Phase 20: Billing (Stripe subscriptions + AI usage/cost guard)
+
+The roadmap only ever named this phase "Billing (Stripe subscriptions +
+AI usage/cost guard)" - no other spec existed, so every concrete design
+decision below (plan tiers, budget amounts, the model pricing table, how
+the guard enforces itself, the Stripe route shapes) was made here,
+following the same "own research plus honest documentation" approach as
+every connector phase.
+
+**Why this phase reaches back into `packages/ai`.** `AIJob.tokens_used`/
+`cost_estimate` have existed on the domain model since Phase 2, with a
+docstring saying outright they exist "so the cost guard has data to work
+with later" - this is precisely where that dormant scaffolding gets
+populated for real. Doing that honestly (CLAUDE.md #9 - never invent a
+number) required a real token count from the provider's own API
+response, and the existing `AIProvider.generate_structured` interface
+returned a bare `dict` with nowhere to put one. Rather than estimate
+tokens some other way, the interface itself changed: it now returns a
+`GeneratedOutput` dataclass carrying both the parsed `data` and an
+optional `TokenUsage(input_tokens, output_tokens)` - `None` when a
+provider genuinely can't report usage, never a guessed zero (a zero
+would misleadingly claim "this cost nothing"). `AnthropicProvider`
+builds `TokenUsage` from the real `response.usage` the Messages API
+returns; `FakeAIProvider` takes an optional `usage` so tests can
+exercise both the "we know the cost" and "we honestly don't" paths.
+Both AI-calling agents (`analytics_agent.build_dashboard_narrative`,
+`product_agent.build_product_content_proposal`) now return
+`(result, TokenUsage | None)` tuples instead of a bare result.
+
+**New package: `packages/billing` (`cp_billing`).** Pure, dependency-free
+deterministic math, mirroring `cp_pricing`/`cp_analytics`'s own
+philosophy - no DB, no async, no `cp_domain` import (it uses plain
+string plan keys `"free"`/`"starter"`/`"pro"` matching
+`cp_domain.subscription.PlanTier.value`, the same way `cp_pricing`
+never imports `cp_domain.Product` either). Three modules:
+
+- `plans.py` - `PLAN_AI_BUDGETS`: Free $1.00/mo, Starter $10.00/mo, Pro
+  $50.00/mo. These are our own product decisions, not a claim about
+  external fact, so hardcoding them isn't a CLAUDE.md #9 problem the way
+  a vendor's pricing table would be.
+- `cost.py` - `MODEL_PRICING`, a maintained rate card of real per-token
+  Anthropic prices (Claude Sonnet 5, Opus 5, Haiku 4.5) *is* the kind of
+  external fact CLAUDE.md #9 cares about, so `compute_cost` returns
+  `None` for an unrecognized `(provider, model)` pair rather than
+  guessing - a stale rate card produces an honest "unknown," never a
+  fabricated number.
+- `guard.py` - `check_ai_budget(plan, spent_this_period)` is a pure
+  comparison returning an `AIBudgetStatus` (budget/spent/remaining/
+  exceeded). It does no enforcement itself - it's just the math.
+
+**The impure half: `apps/worker/worker/cost_guard.py`.** This is
+deliberately a two-tier design: `cp_billing` computes, `cost_guard.py`
+queries the real database and actually decides. `get_or_create_subscription`
+defensively creates a `Subscription` row for any tenant that predates
+this phase's migration rather than crashing. `current_period_ai_spend`
+sums real `AIJob.cost_estimate` rows since the start of the current
+calendar month (UTC) - deliberately decoupled from Stripe's own billing-
+cycle boundaries, a documented simplification that keeps the guard
+working identically for a free tenant with no Stripe subscription at
+all. `check_tenant_ai_budget` combines both into the one call every
+AI-calling task now makes. `record_usage_on_job` writes real
+`tokens_used`/`cost_estimate`/`ai_provider`/`ai_model` onto a job after a
+successful call, doing nothing when `usage` is `None`.
+
+Both `generate_dashboard_narrative` and `generate_product_content_recommendation`
+now create an `AIJob` row, check the budget *after* creating it but
+*before* the real (billed) provider call, and mark the job `FAILED` with
+a clear "budget exceeded" message and return normally (not raise - this
+is an expected stop, not a bug) when the tenant is over budget. A
+provider exception still marks the job `FAILED` but re-raises, so
+Celery's own failure tracking still sees it. `generate_product_content_recommendation`
+(Phase 10's task) turned out to have never used `AIJob` at all despite
+making real billed calls since Phase 10 - a real gap that would have
+made the guard blind to a third of all AI spend, closed here by giving
+it the same full `AIJob` lifecycle the catalog/analytics agents already
+had.
+
+**`cp_domain.subscription.Subscription`** - one row per tenant
+(`UniqueConstraint` on `tenant_id`), never nullable, created at
+registration (`auth/service.py`) alongside a tenant's owner membership.
+`PlanTier` (free/starter/pro) and `SubscriptionStatus`
+(active/past_due/canceled/incomplete) are its own enums, separate from
+`cp_billing`'s plain strings on purpose - the domain model can express
+richer status than the pure math package needs to know about. New
+migration `9ebbb61aaae6` follows the same autogenerate-plus-manual-
+enum-drop-in-downgrade pattern used for every prior enum-backed table.
+
+**`apps/api`'s billing surface** (`app/api/routes/billing.py`) - `GET
+/billing` (current plan/status/spend/budget), `POST /billing/checkout`
+(creates or reuses a Stripe Customer, starts a Checkout Session, 503 if
+Stripe isn't configured, 400 for the free plan), `POST /billing/portal`
+(Stripe Billing Portal session), and `POST /billing/webhook` (public,
+signature-verified via `stripe.Webhook.construct_event`, syncs plan/
+status/period-end from `customer.subscription.updated`/`.deleted`).
+`app/core/stripe_client.py` is a lazy seam mirroring `celery_client.py`'s
+pattern - it returns `None` when no `STRIPE_SECRET_KEY` is configured so
+every route degrades to a 503 instead of the SDK raising a confusing
+auth error, and tests monkeypatch it exactly like `worker.tasks.*`'s
+`_get_provider()` seam. The subscription get-or-create and spend-sum
+logic is deliberately re-implemented (not imported) here rather than
+shared with `worker/cost_guard.py`: apps/api and apps/worker never
+import each other's code, only `packages/`, and this logic needs a live
+`AsyncSession` that `cp_billing` intentionally doesn't depend on.
+
+**`apps/web`'s `/billing` page** - current plan/status, an AI-spend
+progress bar (red past budget), three plan cards with "Upgrade" buttons
+that POST to `/billing/checkout` and redirect to the returned Stripe
+URL, and a "Manage billing" button (portal) once a tenant has a real
+Stripe subscription. Added as a new sidebar nav item in `AppShell`.
+
+Verified: `packages/billing` (12 tests), `packages/ai` (57, up from the
+pre-Phase-20 baseline after the `TokenUsage` plumbing), `apps/worker`
+(48, up from 43), and `apps/api` (125, up from 117) all pass from fresh
+venvs; ruff clean across all four. Full real-stack verification:
+registered a real tenant against a running Postgres-backed API,
+confirmed `GET /billing` reports the Free plan's real $1.00 budget with
+$0 spent, confirmed `POST /billing/checkout`/`/billing/portal`/
+`/billing/webhook` all return a clean 503 with no Stripe key configured
+(exactly the intended degrade-gracefully behavior for this sandbox,
+which has no real Stripe credentials), and confirmed the free-plan
+checkout rejection and webhook signature rejection paths. Visually
+verified the `/billing` page end-to-end with a headless browser against
+the real API - plan cards, spend bar, and the "Billing isn't configured"
+message all render correctly. Frontend lint/typecheck/build all pass.

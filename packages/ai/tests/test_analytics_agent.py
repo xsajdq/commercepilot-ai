@@ -3,7 +3,7 @@ from decimal import Decimal
 from cp_analytics import DashboardMetrics
 
 from cp_ai.agents.analytics_agent import build_dashboard_narrative
-from cp_ai.providers import FakeAIProvider
+from cp_ai.providers import FakeAIProvider, TokenUsage
 
 
 def _metrics(**overrides) -> DashboardMetrics:
@@ -32,7 +32,7 @@ class TestBuildDashboardNarrative:
             }
         )
 
-        narrative = await build_dashboard_narrative(provider=provider, metrics=_metrics())
+        narrative, _usage = await build_dashboard_narrative(provider=provider, metrics=_metrics())
 
         assert narrative.summary == "Your store is healthy overall, with a few pricing gaps."
         assert narrative.highlights == [
@@ -59,3 +59,20 @@ class TestBuildDashboardNarrative:
 
         [call] = provider.calls
         assert "never invent" in call.system_prompt.lower()
+
+    async def test_returns_the_providers_real_token_usage(self) -> None:
+        provider = FakeAIProvider(
+            {"summary": "s", "highlights": []},
+            usage=TokenUsage(input_tokens=120, output_tokens=40),
+        )
+
+        _narrative, usage = await build_dashboard_narrative(provider=provider, metrics=_metrics())
+
+        assert usage == TokenUsage(input_tokens=120, output_tokens=40)
+
+    async def test_usage_is_none_when_the_provider_reports_none(self) -> None:
+        provider = FakeAIProvider({"summary": "s", "highlights": []})
+
+        _narrative, usage = await build_dashboard_narrative(provider=provider, metrics=_metrics())
+
+        assert usage is None

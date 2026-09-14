@@ -8,18 +8,19 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 19**
-(IdoSell connector): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 20**
+(Billing): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
 WooCommerce + Allegro + Shoper + PrestaShop + IdoSell connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
--> Executing -> Success/Failed`), a deterministic pricing engine, and
+-> Executing -> Success/Failed`), a deterministic pricing engine,
 six working agents (pricing, product content, listing publication,
-catalog health, analytics, competition) are all live - plus a minimal
+catalog health, analytics, competition), and Stripe-backed subscription
+billing with a real AI usage/cost guard are all live - plus a minimal
 web UI (connections, products with competitor-price tracking, catalog,
-recommendations/approvals, a live analytics dashboard) wired to a real
-HTTP API on top of all of it, so the whole pipeline is clickable end to
-end, not just testable from the CLI. The listing agent was the first
+recommendations/approvals, a live analytics dashboard, billing/plans)
+wired to a real HTTP API on top of all of it, so the whole pipeline is
+clickable end to end, not just testable from the CLI. The listing agent was the first
 AI-approved action to reach a real marketplace (via a typed connector,
 CLAUDE.md #2) rather than only our own database; the catalog and
 analytics agents are the two real uses of the Phase-2-scaffolded `AIJob`
@@ -56,7 +57,17 @@ were also unreachable, and only its auth header, base URL, and one
 field name could be confirmed, so reads return real ids with every
 other field honestly blank rather than guessed, and every write method
 raises outright rather than risk corrupting a real store's inventory or
-pricing. Every `ConnectionPlatform` now has a real connector.
+pricing. Every `ConnectionPlatform` now has a real connector. Phase 20
+added Stripe subscriptions (Free/Starter/Pro) and a real AI usage/cost
+guard: `AIProvider.generate_structured` now returns the provider's real
+token usage alongside its result (never estimated), a new
+dependency-free `cp_billing` package computes plan budgets and
+deterministic per-token cost from a maintained model rate card, and
+`apps/worker`'s cost guard checks a tenant's real spend-this-month
+against their plan's budget before every billed AI call, blocking (not
+crashing) the ones that would go over. `apps/api` exposes `GET /billing`
+plus Stripe checkout/portal/webhook routes, and `apps/web` gained a
+`/billing` page.
 
 ## Repository layout
 

@@ -1,7 +1,7 @@
 from cp_analytics import DashboardMetrics
 from pydantic import BaseModel
 
-from cp_ai.providers.base import AIProvider
+from cp_ai.providers.base import AIProvider, TokenUsage
 
 _SYSTEM_PROMPT = (
     "You are an e-commerce analyst writing a short daily summary for a store owner. "
@@ -31,10 +31,13 @@ def _metrics_prompt(metrics: DashboardMetrics) -> str:
 
 async def build_dashboard_narrative(
     *, provider: AIProvider, metrics: DashboardMetrics
-) -> DashboardNarrative:
+) -> tuple[DashboardNarrative, TokenUsage | None]:
     """Phase 13's "AI narrative" half - turns `cp_analytics`'s
     deterministic `DashboardMetrics` into a short prose summary via
-    `AIProvider.generate_structured`.
+    `AIProvider.generate_structured`. Returns the narrative alongside the
+    real token usage for that call (Phase 20: the caller records this on
+    the `AIJob` for the cost guard - this function knows nothing about
+    billing itself).
 
     Unlike the product agent (Phase 10), this has no CLAUDE.md #18
     hallucination-override step: every number handed to the model here
@@ -49,10 +52,10 @@ async def build_dashboard_narrative(
     Read-only: never proposes a `Recommendation`, never targets a tool
     call - this exists purely to narrate, not to act.
     """
-    raw = await provider.generate_structured(
+    output = await provider.generate_structured(
         system_prompt=_SYSTEM_PROMPT,
         user_prompt=_metrics_prompt(metrics),
         schema=DashboardNarrative.model_json_schema(),
         schema_name="dashboard_narrative",
     )
-    return DashboardNarrative.model_validate(raw)
+    return DashboardNarrative.model_validate(output.data), output.usage

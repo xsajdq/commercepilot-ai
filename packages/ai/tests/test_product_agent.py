@@ -5,7 +5,7 @@ from cp_domain.product import Product
 from cp_domain.recommendation import RecommendationType, RiskLevel
 
 from cp_ai.agents import build_product_content_proposal
-from cp_ai.providers import FakeAIProvider
+from cp_ai.providers import FakeAIProvider, TokenUsage
 from cp_ai.tools.builtin.product_tools import update_product_content_tool
 
 
@@ -38,7 +38,7 @@ class TestBuildProductContentProposal:
             }
         )
 
-        proposal = await build_product_content_proposal(provider=provider, product=product)
+        proposal, _usage = await build_product_content_proposal(provider=provider, product=product)
 
         assert proposal.type is RecommendationType.CONTENT_UPDATE
         assert proposal.risk_level is RiskLevel(
@@ -66,7 +66,7 @@ class TestBuildProductContentProposal:
             }
         )
 
-        proposal = await build_product_content_proposal(provider=provider, product=product)
+        proposal, _usage = await build_product_content_proposal(provider=provider, product=product)
 
         specs = proposal.tool_arguments["new_extra_attributes"]["specifications"]
         assert specs["ean"] == "1234567890123"
@@ -83,7 +83,7 @@ class TestBuildProductContentProposal:
             }
         )
 
-        proposal = await build_product_content_proposal(provider=provider, product=product)
+        proposal, _usage = await build_product_content_proposal(provider=provider, product=product)
 
         specs = proposal.tool_arguments["new_extra_attributes"]["specifications"]
         assert specs["ean"] == "UNKNOWN"
@@ -113,7 +113,7 @@ class TestBuildProductContentProposal:
             }
         )
 
-        proposal = await build_product_content_proposal(provider=provider, product=product)
+        proposal, _usage = await build_product_content_proposal(provider=provider, product=product)
 
         specs = proposal.tool_arguments["new_extra_attributes"]["specifications"]
         assert specs["brand"] == "UNKNOWN"
@@ -131,3 +131,14 @@ class TestBuildProductContentProposal:
         assert "1234567890123" in call.user_prompt
         assert "weight_kg" in call.user_prompt
         assert call.schema_name == "product_content"
+
+    async def test_returns_the_providers_real_token_usage(self) -> None:
+        product = _product()
+        provider = FakeAIProvider(
+            {"title": "t", "description": "d", "bullet_points": [], "specifications": {}},
+            usage=TokenUsage(input_tokens=200, output_tokens=80),
+        )
+
+        _proposal, usage = await build_product_content_proposal(provider=provider, product=product)
+
+        assert usage == TokenUsage(input_tokens=200, output_tokens=80)

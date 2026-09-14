@@ -14,6 +14,7 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("ENCRYPTION_KEY", "PkZQhLxgmytMSC4Pu32Jh6FT5i_UN5bGclRzJ9Or-Wk=")
 
 import pytest  # noqa: E402
+from cp_domain.ai_job import AIJob, AIJobStatus  # noqa: E402
 from cp_domain.competitor_price import (  # noqa: E402
     CompetitorPrice,
     CompetitorPriceSource,
@@ -23,6 +24,7 @@ from cp_domain.offer import Offer, OfferStatus  # noqa: E402
 from cp_domain.price import Price  # noqa: E402
 from cp_domain.product import Product, ProductStatus  # noqa: E402
 from cp_domain.stock import Stock  # noqa: E402
+from cp_domain.subscription import PlanTier, Subscription  # noqa: E402
 from cp_domain.variant import Variant  # noqa: E402
 from cp_shared.crypto import encrypt_credentials  # noqa: E402
 from cp_shared.db import Base  # noqa: E402
@@ -211,5 +213,48 @@ def make_competitor_price(
             db.add(row)
             await db.commit()
             return row.id
+
+    return asyncio.run(_create())
+
+
+def make_subscription(tenant_id: uuid.UUID, *, plan: PlanTier = PlanTier.FREE) -> uuid.UUID:
+    async def _create() -> uuid.UUID:
+        async with async_session_factory() as db:
+            subscription = Subscription(tenant_id=tenant_id, plan=plan)
+            db.add(subscription)
+            await db.commit()
+            return subscription.id
+
+    return asyncio.run(_create())
+
+
+def make_ai_job(
+    tenant_id: uuid.UUID,
+    *,
+    agent_type: str = "analytics",
+    cost_estimate: Decimal | None = Decimal("1.00"),
+    created_at: datetime | None = None,
+) -> uuid.UUID:
+    """Seeds a completed AIJob directly, without running a real agent -
+    used to set up "the tenant has already spent X this period"
+    scenarios for cost-guard tests."""
+
+    async def _create() -> uuid.UUID:
+        async with async_session_factory() as db:
+            job = AIJob(
+                tenant_id=tenant_id,
+                agent_type=agent_type,
+                status=AIJobStatus.SUCCEEDED,
+                cost_estimate=cost_estimate,
+            )
+            db.add(job)
+            await db.commit()
+            if created_at is not None:
+                await db.execute(
+                    text("UPDATE ai_jobs SET created_at = :created_at WHERE id = :id"),
+                    {"created_at": created_at, "id": job.id},
+                )
+                await db.commit()
+            return job.id
 
     return asyncio.run(_create())
