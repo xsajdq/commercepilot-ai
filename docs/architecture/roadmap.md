@@ -31,7 +31,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 13 — Analytics agent** (dashboard first, AI narrative second).
 - [x] **Phase 14 — Competition agent** (manual competitors + API sources).
 - [x] **Phase 15 — Recommendations** (daily scheduler tying agents together).
-- [ ] **Phase 16 — Dashboard polish**.
+- [x] **Phase 16 — Dashboard polish**.
 - [ ] **Phase 17 — Shoper connector**.
 - [ ] **Phase 18 — PrestaShop connector**.
 - [ ] **Phase 19 — IdoSell connector** (own research first, don't force the
@@ -772,3 +772,54 @@ asserting `worker.tasks.scheduler` doesn't even import
 `apps/worker`'s venv rebuilt from scratch and all 43 pass; no other
 package's test count changes since no domain model, migration, or route
 was touched this phase.
+
+Phase 16 complete: dashboard polish - a purely `apps/web` phase, no
+backend changes at all, focused on the two things asked for: a modern,
+easy-to-use layout, and a left-hand sidebar (previously the whole app
+used a single horizontal top nav shared across all five authenticated
+pages via `AppShell`).
+
+`components/AppShell.tsx` rebuilt around a fixed left sidebar (`lucide-
+react` icons, active-route highlighting, a user card + logout pinned to
+the bottom) instead of the old top nav bar - since every authenticated
+page (`/dashboard`, `/connections`, `/products`, `/catalog`,
+`/recommendations`) already rendered through this one shared component,
+redesigning it there updated the whole app's navigation in one place,
+with zero changes needed to any individual page. On narrow viewports the
+sidebar becomes an off-canvas drawer (a hamburger button in a slim top
+bar opens it, an overlay + an explicit close button dismiss it, and
+clicking a nav link closes it too) rather than disappearing - CLAUDE.md
+doesn't mandate mobile support, but a real dashboard a human approves
+things from should not become unusable on a phone.
+
+The Dashboard page itself (`app/dashboard/page.tsx`) got the same visual
+pass without touching any of its data-fetching logic (same
+`getDashboardMetrics`/`listDashboardNarratives`/`triggerDashboardNarrative`
+calls as Phase 13): each stat card now carries a small icon in a tinted
+badge, a subtle lift-on-hover, and a hint arrow, the "AI insight" panel
+got an accent icon, and "Getting started" became a numbered-badge list
+instead of a plain `<ol>`. Purely presentational - every number, link,
+and behavior is identical to Phase 13's version.
+
+Verified against the real running stack: registered fresh tenants
+against a real API + Postgres and drove the actual Next.js dev server
+(not a static mock) through Playwright at both a desktop width (1440px)
+and a phone width (390px) - confirmed the sidebar persists across
+`/dashboard` → `/products` navigation with the correct item highlighted,
+the mobile drawer opens/overlays/closes correctly, and `/connections`,
+`/catalog`, and `/recommendations` all still render cleanly through the
+new shell with zero browser console errors. `npm run lint`, `npm run
+typecheck`, and `npm run build` (Turbopack) all pass - lint caught one
+real issue during development (`setState` called synchronously inside a
+`pathname`-watching `useEffect` to auto-close the mobile drawer, flagged
+by React's `react-hooks/set-state-in-effect` rule); fixed by closing the
+drawer directly from each nav link's `onClick` instead of an effect,
+which is more correct anyway (closes immediately on click rather than
+after the route change re-renders).
+
+No new tests: this phase changed markup/styling and one interaction
+(mobile drawer open/close), not business logic - no domain model,
+migration, agent, or API route was touched, so no package's test count
+changes. New frontend dependency: `lucide-react` (icons for the sidebar
+and stat cards), matching CLAUDE.md's stated stack
+(`shadcn/ui`-style tooling commonly pairs with it).
