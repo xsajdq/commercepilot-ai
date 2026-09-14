@@ -8,10 +8,10 @@ full mission, architecture principles, and the mandatory
 Verification → Audit Log` control flow every mutation follows.
 
 Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 16**
-(dashboard polish): registration, login, tenant-scoped JWT sessions,
+what's next. This repo is currently at the end of **Phase 17**
+(Shoper connector): registration, login, tenant-scoped JWT sessions,
 role-based membership, the full e-commerce domain model, real
-WooCommerce + Allegro connectors, a sync engine, the AI tool system +
+WooCommerce + Allegro + Shoper connectors, a sync engine, the AI tool system +
 approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
 -> Executing -> Success/Failed`), a deterministic pricing engine, and
 six working agents (pricing, product content, listing publication,
@@ -38,7 +38,13 @@ drawer on mobile), every page was swept onto a real design system
 shared `.card`/`.btn-primary`/`.input` tokens) instead of unstyled
 Tailwind gray/black defaults, and the landing/login/register pages got a
 matching dark gradient treatment - no backend changes, same data and
-behavior underneath.
+behavior underneath. Phase 17 added `ShoperConnector`, a third real
+platform integration (alongside WooCommerce and Allegro) for the Polish
+e-commerce platform Shoper - the connector manages its own bearer-token
+auth internally (a caller supplies client ID/secret, same as
+WooCommerce's consumer key/secret), and its README documents exactly
+which parts of Shoper's API shape are confirmed vs. best-effort inferred
+(the official docs site was unreachable from this environment).
 
 ## Repository layout
 
@@ -50,7 +56,7 @@ apps/
 packages/
   shared/     cp_shared - the shared SQLAlchemy Base + mixins
   domain/     cp_domain - the e-commerce domain model (products, orders, ...)
-  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro
+  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro/Shoper
   sync/       cp_sync - the sync engine (retry/backoff, idempotent upsert)
   pricing/    cp_pricing - deterministic pricing engine (no AI, no deps)
   analytics/  cp_analytics - deterministic dashboard metrics (no AI, no deps)

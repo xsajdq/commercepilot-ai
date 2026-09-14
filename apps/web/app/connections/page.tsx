@@ -18,7 +18,7 @@ import StatusBadge from "@/components/StatusBadge";
 const PLATFORMS: { value: ConnectionPlatform; label: string; supported: boolean }[] = [
   { value: "woocommerce", label: "WooCommerce", supported: true },
   { value: "allegro", label: "Allegro", supported: true },
-  { value: "shoper", label: "Shoper", supported: false },
+  { value: "shoper", label: "Shoper", supported: true },
   { value: "prestashop", label: "PrestaShop", supported: false },
   { value: "idosell", label: "IdoSell", supported: false },
 ];
@@ -34,6 +34,8 @@ export default function ConnectionsPage() {
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [shoperClientId, setShoperClientId] = useState("");
+  const [shoperClientSecret, setShoperClientSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function refresh() {
@@ -56,7 +58,13 @@ export default function ConnectionsPage() {
         ? { store_url: storeUrl, consumer_key: consumerKey, consumer_secret: consumerSecret }
         : platform === "allegro"
           ? { access_token: accessToken }
-          : {};
+          : platform === "shoper"
+            ? {
+                store_url: storeUrl,
+                client_id: shoperClientId,
+                client_secret: shoperClientSecret,
+              }
+            : {};
 
     try {
       await createConnection(token, { platform, name, credentials });
@@ -65,6 +73,8 @@ export default function ConnectionsPage() {
       setConsumerKey("");
       setConsumerSecret("");
       setAccessToken("");
+      setShoperClientId("");
+      setShoperClientSecret("");
       refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -224,6 +234,37 @@ export default function ConnectionsPage() {
                   className="input"
                 />
               </Field>
+            )}
+
+            {platform === "shoper" && (
+              <>
+                <Field label="Store URL">
+                  <input
+                    required
+                    value={storeUrl}
+                    onChange={(e) => setStoreUrl(e.target.value)}
+                    className="input"
+                    placeholder="https://shop.example.pl"
+                  />
+                </Field>
+                <Field label="Client ID">
+                  <input
+                    required
+                    value={shoperClientId}
+                    onChange={(e) => setShoperClientId(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+                <Field label="Client secret">
+                  <input
+                    required
+                    type="password"
+                    value={shoperClientSecret}
+                    onChange={(e) => setShoperClientSecret(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+              </>
             )}
 
             {!selectedPlatform.supported && (

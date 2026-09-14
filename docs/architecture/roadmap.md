@@ -32,7 +32,7 @@ testable and merged before the next begins — never one giant change.
 - [x] **Phase 14 — Competition agent** (manual competitors + API sources).
 - [x] **Phase 15 — Recommendations** (daily scheduler tying agents together).
 - [x] **Phase 16 — Dashboard polish**.
-- [ ] **Phase 17 — Shoper connector**.
+- [x] **Phase 17 — Shoper connector**.
 - [ ] **Phase 18 — PrestaShop connector**.
 - [ ] **Phase 19 — IdoSell connector** (own research first, don't force the
       WooCommerce-shaped abstraction).
@@ -878,3 +878,62 @@ console errors. `npm run lint`, `npm run typecheck`, and `npm run build`
 all pass. Purely presentational, same as the first Phase 16 pass: no
 data-fetching logic, route, or API call changed - every page renders the
 exact same data through new markup/classes.
+
+Phase 17 complete: `ShoperConnector`, the third real platform integration
+alongside WooCommerce (Phase 4) and Allegro (Phase 5) - Shoper is a
+Polish e-commerce platform, filling out the "more platforms to manage"
+half of what a real multi-store e-commerce manager needs.
+
+`developers.shoper.pl` itself was unreachable from this environment
+(network egress blocked), so this connector was built from Shoper's own
+indexed API reference pages plus a third-party Python client library's
+resource names rather than the OpenAPI spec directly. Per CLAUDE.md #9
+("never invent product technical specifications"), the class docstring
+is explicit about which details are confirmed (the auth flow, the list-
+response envelope, the product/category schema shape) versus inferred
+(the exact field name for a product's id, the image-upload endpoint) -
+the inferred parts are flagged for verification against a real store
+before production use, not presented as certain.
+
+The connector itself: auth is `POST /webapi/rest/auth` with HTTP Basic
+(`client_id`, `client_secret`) returning a bearer token good for ~30
+days with no refresh token - unlike `AllegroConnector` (which only ever
+*uses* an already-issued token, leaving the OAuth dance to a separate
+module), `ShoperConnector` performs this exchange itself and
+re-authenticates transparently whenever its cached token is missing,
+expired, or a live request comes back 401 - a caller supplies
+`client_id`/`client_secret` once, the same shape as WooCommerce's
+consumer key/secret, and never handles a token directly. A genuine
+correctness risk specific to Shoper's schema (price and stock quantity
+share one nested `stock` object; name/description/active share one
+`translations[locale]` object) is handled by having
+`update_price`/`update_stock`/`publish_offer` read-then-write the
+relevant nested object instead of PUTting a bare partial fragment - a
+naive partial PUT risks the API full-replacing that nested object and
+silently dropping its siblings, unlike WooCommerce/Allegro where every
+mutable field already has its own top-level key.
+
+`packages/sync/cp_sync/connector_factory.py` gained the `SHOPER` branch
+(`UnsupportedPlatformError` now only covers PrestaShop/IdoSell - Phases
+18-19); no changes needed in `cp_sync.products` at all, since Shoper's
+"active"/"draft" status vocabulary already matched
+`_STATUS_MAP`'s existing entries. `apps/web`'s Connections page marked
+Shoper as supported and added its credential fields (store URL, client
+ID, client secret) - `apps/api`'s connection-creation route needed no
+change, since it already accepts any `ConnectionPlatform` with a
+free-form credentials dict.
+
+Verified with `httpx.MockTransport` against a `FakeShoperAPI` standing
+in for a real store (no live Shoper account available) - 16 new tests in
+`packages/connectors/tests/test_shoper_connector.py`, including two
+tests specifically proving the read-then-write design actually prevents
+the correctness risk it exists for (a price update leaves stock quantity
+untouched and vice versa), and two proving the transparent-
+reauthentication behavior (a single 401 on a cached token triggers
+exactly one re-auth-and-retry rather than a spurious failure; a
+connector instance authenticates only once across multiple calls while
+its token remains valid). `packages/connectors` now at 65 tests (49 → 65);
+`packages/sync` gained a `test_build_shoper_connector` test and repointed
+its "unsupported platform" test at `PRESTASHOP` now that Shoper has a
+real connector (12 tests, unchanged count). Frontend `npm run lint`/
+`typecheck`/`build` all pass with the new Shoper form fields.

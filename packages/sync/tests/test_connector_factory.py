@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from cp_connectors.allegro import AllegroConnector
+from cp_connectors.shoper import ShoperConnector
 from cp_connectors.woocommerce import WooCommerceConnector
 from cp_domain.connection import Connection, ConnectionPlatform
 
@@ -25,9 +26,17 @@ def test_build_allegro_connector() -> None:
     assert isinstance(connector, AllegroConnector)
 
 
+def test_build_shoper_connector() -> None:
+    connector = build_connector(
+        _connection(ConnectionPlatform.SHOPER),
+        {"store_url": "https://shop.example.pl", "client_id": "cid", "client_secret": "cs"},
+    )
+    assert isinstance(connector, ShoperConnector)
+
+
 def test_unsupported_platform_raises() -> None:
     with pytest.raises(UnsupportedPlatformError):
-        build_connector(_connection(ConnectionPlatform.SHOPER), {})
+        build_connector(_connection(ConnectionPlatform.PRESTASHOP), {})
 
 
 def test_missing_credentials_raise_key_error() -> None:

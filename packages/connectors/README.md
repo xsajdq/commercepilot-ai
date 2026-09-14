@@ -83,6 +83,47 @@ Tested against `tests/test_allegro_connector.py`'s `FakeAllegroAPI` and
 `tests/test_allegro_oauth.py`, both via `httpx.MockTransport` - no real
 Allegro account, no sandbox credentials needed.
 
+`ShoperConnector` (Phase 17) is the third real implementation, against
+Shoper's REST API (`{store_url}/webapi/rest`). Network access to
+`developers.shoper.pl` itself was blocked in the environment this was
+built in, so its shape comes from Shoper's own indexed API reference
+pages plus a third-party client library's resource names rather than
+the OpenAPI spec directly - the class docstring marks each detail as
+confirmed or inferred. Notes on its scope:
+
+- Auth is `POST /webapi/rest/auth` with HTTP Basic (`client_id`,
+  `client_secret`) returning a ~30-day bearer token with no refresh
+  token - unlike `AllegroConnector`, this class performs that exchange
+  itself and re-authenticates transparently (missing/expired cached
+  token, or a live 401), so a caller only ever supplies
+  `client_id`/`client_secret` (the same shape as WooCommerce's consumer
+  key/secret), never a token.
+- A product's name/description/active-flag live under a `translations`
+  dict keyed by locale (Shoper stores are commonly multi-language) -
+  this connector only reads/writes one locale (`pl_PL` by default) and
+  doesn't attempt to keep every language in sync.
+- `update_price`/`update_stock`/`publish_offer` read-then-write the
+  relevant nested object (`stock`, or `translations[locale]`) instead of
+  PUTting a bare partial fragment - price and stock quantity share one
+  `stock` object, and name/description/active share one
+  `translations[locale]` object, so a partial PUT risks the API
+  full-replacing that nested object and dropping its siblings (unlike
+  WooCommerce/Allegro, where every mutable field already has its own
+  top-level key).
+- `get_category_parameters` always returns `[]` (same documented
+  limitation as `WooCommerceConnector` - no per-category mandatory-field
+  concept was found) and `upload_image`'s exact request shape is a
+  best-effort inference, flagged in the docstring for verification
+  against a real store before production use.
+
+Tested against `tests/test_shoper_connector.py`'s `FakeShoperAPI` via
+`httpx.MockTransport` - no real Shoper store needed. Includes dedicated
+tests for the two correctness risks its design exists to avoid (a price
+update doesn't wipe stock quantity and vice versa) and for the
+transparent-reauthentication behavior (one 401 on a cached token is
+absorbed by a single re-auth-and-retry, and a connector instance only
+authenticates once across multiple calls while its token stays valid).
+
 Run its tests standalone (no DB, no other services needed):
 
 ```bash

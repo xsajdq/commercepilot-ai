@@ -2,13 +2,14 @@ from typing import Any
 
 from cp_connectors.allegro import AllegroConnector
 from cp_connectors.base import CommerceConnector
+from cp_connectors.shoper import ShoperConnector
 from cp_connectors.woocommerce import WooCommerceConnector
 from cp_domain.connection import Connection, ConnectionPlatform
 
 
 class UnsupportedPlatformError(Exception):
     """Raised for a platform with no connector implementation yet
-    (Shoper, PrestaShop, IdoSell - Phases 17-19)."""
+    (PrestaShop, IdoSell - Phases 18-19)."""
 
 
 def build_connector(connection: Connection, credentials: dict[str, Any]) -> CommerceConnector:
@@ -24,6 +25,12 @@ def build_connector(connection: Connection, credentials: dict[str, Any]) -> Comm
         )
     if connection.platform == ConnectionPlatform.ALLEGRO:
         return AllegroConnector(access_token=credentials["access_token"])
+    if connection.platform == ConnectionPlatform.SHOPER:
+        return ShoperConnector(
+            store_url=credentials["store_url"],
+            client_id=credentials["client_id"],
+            client_secret=credentials["client_secret"],
+        )
 
     raise UnsupportedPlatformError(
         f"no connector implemented for platform {connection.platform!r}"

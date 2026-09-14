@@ -22,8 +22,9 @@ and `httpx.TransportError` are.
 `build_connector(connection, credentials) -> CommerceConnector` - the one
 place that dispatches a `Connection.platform` to a concrete connector
 class and constructs it from decrypted credentials. Raises
-`UnsupportedPlatformError` for platforms without a connector yet (Shoper,
-PrestaShop, IdoSell). Never touches encryption itself - the caller
+`UnsupportedPlatformError` for platforms without a connector yet
+(PrestaShop, IdoSell - Shoper joined WooCommerce/Allegro in Phase 17).
+Never touches encryption itself - the caller
 (currently `apps/worker`) is responsible for decrypting
 `Connection.encrypted_credentials` first via `cp_shared.crypto`.
 

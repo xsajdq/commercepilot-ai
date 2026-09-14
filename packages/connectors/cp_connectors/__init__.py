@@ -13,6 +13,7 @@ from cp_connectors.exceptions import (
     ConnectorRateLimitError,
 )
 from cp_connectors.mock import MockConnector
+from cp_connectors.shoper import ShoperConnector
 from cp_connectors.types import (
     CategoryParameter,
     ConnectorCategory,
@@ -36,6 +37,7 @@ __all__ = [
     "ConnectorRateLimitError",
     "MockConnector",
     "PriceUpdate",
+    "ShoperConnector",
     "StockUpdate",
     "UploadedImage",
     "WooCommerceConnector",
