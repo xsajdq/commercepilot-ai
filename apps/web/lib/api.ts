@@ -9,6 +9,38 @@ export class ApiError extends Error {
   }
 }
 
+type FastApiValidationError = {
+  loc: (string | number)[];
+  msg: string;
+};
+
+// FastAPI's `detail` is a plain string for most errors (401/403/404/409),
+// but for a 422 it's a list of Pydantic validation errors instead - each
+// with its own `loc`/`msg`, not a single message. Passing that array
+// straight to `Error`/`ApiError` stringifies it as "[object Object]"
+// (Array.prototype.toString calls each element's own toString, and a
+// plain object's is literally that string) - flatten it into something
+// a human can actually read instead.
+function extractErrorMessage(body: unknown): string {
+  if (typeof body !== "object" || body === null || !("detail" in body)) {
+    return "Request failed";
+  }
+  const detail = (body as { detail: unknown }).detail;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item: FastApiValidationError) => {
+        const field = item.loc?.filter((part) => part !== "body").join(".");
+        return field ? `${field}: ${item.msg}` : item.msg;
+      })
+      .join("; ");
+  }
+
+  return "Request failed";
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -20,7 +52,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body.detail ?? "Request failed");
+    throw new ApiError(response.status, extractErrorMessage(body));
   }
 
   return (await response.json()) as T;
