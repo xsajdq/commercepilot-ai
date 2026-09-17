@@ -29,7 +29,7 @@ class IssueSeverity(str, enum.Enum):
 class CatalogIssue:
     """One problem found in the catalog. Not every issue becomes a
     `Recommendation` - most of these have no safe, non-guessed fix (a
-    missing price or EAN can't be invented per CLAUDE.md #9, and a wrong
+    missing price or EAN can't be invented per CONTRIBUTING.md #9, and a wrong
     price is the pricing agent's job, not this one's to re-derive) and
     exist purely to be surfaced to a human, e.g. on a future dashboard
     (Phase 16). Only `ORPHAN_PRODUCT` currently maps to an actionable,
@@ -53,7 +53,7 @@ def audit_products(products: Iterable[Product]) -> CatalogAuditReport:
     """Deterministic catalog health checklist - no `AIProvider` call,
     same reasoning as the pricing and listing agents: "is this product
     missing X" is a checklist against data already on hand, not a
-    creative judgement CLAUDE.md #10 would want kept out of an LLM's
+    creative judgement CONTRIBUTING.md #10 would want kept out of an LLM's
     hands anyway.
 
     Expects each `Product` to already have `variants` (and each

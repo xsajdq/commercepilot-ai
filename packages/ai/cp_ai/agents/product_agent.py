@@ -65,7 +65,7 @@ async def build_product_content_proposal(
     literal `"UNKNOWN"` regardless of what the model returned.
 
     That enforcement matters because `product.description` (read into
-    the prompt below) is untrusted external content per CLAUDE.md #18 -
+    the prompt below) is untrusted external content per CONTRIBUTING.md #18 -
     it may have been synced from a marketplace listing an attacker
     controls, and could contain text trying to steer the model into
     inventing a plausible-looking spec value. The model is *asked* not

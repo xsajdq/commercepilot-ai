@@ -21,7 +21,7 @@ class ToolCall:
 
 
 class ToolExecutor:
-    """The control flow from CLAUDE.md, minus the Policy Engine and the
+    """The control flow from CONTRIBUTING.md, minus the Policy Engine and the
     real Approval workflow - both land in Phase 8:
 
         AI -> Tool -> Validation -> [Policy] -> Risk -> Approval

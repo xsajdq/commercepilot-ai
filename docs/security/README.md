@@ -1,7 +1,7 @@
 # Security docs
 
 Threat model, secret-handling policy, and tenant-isolation test notes.
-See `CLAUDE.md` for the non-negotiable rules (never trust client
+See `CONTRIBUTING.md` for the non-negotiable rules (never trust client
 `tenant_id`, never log credentials/PII, secrets encrypted at rest). See
 `docs/security/waf.md` for the edge/WAF layer (Phase 21) - a separate
 concern from everything below, which is all application-level. See
@@ -67,7 +67,7 @@ AI tool system exists (Phase 7):
   concatenated into the system/instruction prompt.
 - A tool call's arguments derived from external content still go through
   the same validation → policy → risk → approval chain as any other tool
-  call (CLAUDE.md's control flow) - injected instructions can't skip it
+  call (CONTRIBUTING.md's control flow) - injected instructions can't skip it
   even if they somehow produce a plausible-looking tool call.
 - Test this like any other security boundary: seed a product description
   or review with an injected instruction and assert the agent's *actions*

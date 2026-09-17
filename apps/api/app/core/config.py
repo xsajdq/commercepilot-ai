@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
 
     # Stripe (Phase 20). None in dev/test means "billing isn't configured" -
-    # routes that need it degrade to a 503 rather than crashing (CLAUDE.md
+    # routes that need it degrade to a 503 rather than crashing (CONTRIBUTING.md
     # #9's "never guess" spirit applies to config too: we don't invent a
     # fake key that would silently fail against the real Stripe API).
     stripe_secret_key: str | None = None

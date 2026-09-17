@@ -1,6 +1,6 @@
 # Architecture overview
 
-See `CLAUDE.md` at the repo root for the mission, core principles, and the
+See `CONTRIBUTING.md` at the repo root for the mission, core principles, and the
 mandatory control flow every mutation follows. See
 `docs/architecture/roadmap.md` for the phased build plan and current
 status.

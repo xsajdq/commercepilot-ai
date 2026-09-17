@@ -10,7 +10,7 @@ class AIProviderError(Exception):
 @dataclass(frozen=True)
 class TokenUsage:
     """Real token counts as reported by the provider's own API response -
-    never estimated or invented (CLAUDE.md #9). `None` from a provider
+    never estimated or invented (CONTRIBUTING.md #9). `None` from a provider
     that genuinely can't report usage (e.g. `FakeAIProvider` unless
     configured otherwise) is left as `None` here too, not defaulted to
     zero - zero would misleadingly read as "no cost" rather than
@@ -33,7 +33,7 @@ class GeneratedOutput:
 
 
 class AIProvider(ABC):
-    """Replaceable LLM backend (CLAUDE.md #17): business logic calls this
+    """Replaceable LLM backend (CONTRIBUTING.md #17): business logic calls this
     interface, never a vendor SDK directly, so swapping Anthropic for
     OpenAI (or anything else) never touches an agent's own code."""
 

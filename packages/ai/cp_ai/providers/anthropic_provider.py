@@ -5,7 +5,7 @@ from cp_ai.providers.base import AIProvider, AIProviderError, GeneratedOutput, T
 
 
 class AnthropicProvider(AIProvider):
-    """The first concrete `AIProvider` (CLAUDE.md #17: replaceable, never
+    """The first concrete `AIProvider` (CONTRIBUTING.md #17: replaceable, never
     hardcoded into business logic - an agent only ever depends on
     `AIProvider`, never on this class or the `anthropic` SDK directly).
 

@@ -50,11 +50,11 @@ def build_pricing_proposal(
     `cp_ai`'s own `update_price` tool, gated behind Phase 8's approval
     workflow like any other HIGH-risk tool call; this function's only
     job is producing that tool call's `tool_name`/`tool_arguments` from
-    a deterministic pricing calculation (CLAUDE.md #10 - math is code,
+    a deterministic pricing calculation (CONTRIBUTING.md #10 - math is code,
     not an LLM call).
 
     Returns `None` - nothing to propose - when: `product.cost` is
-    `UNKNOWN` (`None`), per CLAUDE.md #9 never guessed; the margin
+    `UNKNOWN` (`None`), per CONTRIBUTING.md #9 never guessed; the margin
     targets are mathematically unreachable at any price
     (`PricingInfeasibleError`); or the computed recommendation already
     matches the current price.

@@ -23,7 +23,7 @@ _WRITE_NOT_IMPLEMENTED = (
     "IdoSellConnector does not implement {method} - its request/response schema could "
     "not be confirmed from any source reachable in the environment this was built in "
     "(developers.idosell.com, idosell.readme.io, and idosell.com were all network-"
-    "blocked). Per CLAUDE.md #9 ('never invent product technical specifications'), this "
+    "blocked). Per CONTRIBUTING.md #9 ('never invent product technical specifications'), this "
     "connector will not guess a mutating payload that could silently corrupt a real "
     "store's inventory or pricing. Confirm the real request/response shape against "
     "IdoSell's own docs or a real store before implementing this method."
@@ -39,7 +39,7 @@ class IdoSellConnector:
     platform, and IdoSell's official documentation
     (idosell.com/developers, idosell.readme.io) was network-blocked in
     the environment this was built in. Rather than guess field names
-    CLAUDE.md #9 forbids inventing, this class draws a hard line between
+    CONTRIBUTING.md #9 forbids inventing, this class draws a hard line between
     what could actually be confirmed (via search-engine-indexed
     fragments of IdoSell's own docs and blog posts) and everything else:
 

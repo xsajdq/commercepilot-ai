@@ -61,7 +61,7 @@ async def update_price_handler(
     """Updates our system's own record of an offer's price.
 
     Deliberately does not push the change to the marketplace - per
-    CLAUDE.md #2 ("every external mutation must go through a typed
+    CONTRIBUTING.md #2 ("every external mutation must go through a typed
     connector") and #10 ("deterministic business calculations... must
     not be delegated to an LLM"), pushing a price change to a real store
     is the pricing agent's job (Phase 9), built on top of the
@@ -117,7 +117,7 @@ async def update_product_content_handler(
     """Updates a product's listing content: name, description, and the
     free-form `extra_attributes` bag (bullet points, specifications,
     ...). Never touches `cost`/`vat_rate`/`ean`/etc - those are real
-    manufacturer data (CLAUDE.md #9), not listing copy an agent gets to
+    manufacturer data (CONTRIBUTING.md #9), not listing copy an agent gets to
     rewrite."""
     product = await db.scalar(
         select(Product).where(Product.tenant_id == context.tenant_id, Product.sku == args.sku)
@@ -176,12 +176,12 @@ async def request_listing_publish_handler(
     `PENDING` - but never talks to the marketplace itself.
 
     This is the first tool whose approval is meant to result in a real
-    external mutation (CLAUDE.md #2), and that's exactly why its handler
+    external mutation (CONTRIBUTING.md #2), and that's exactly why its handler
     stays DB-only: `cp_policies.approve()` calls a tool's handler
     synchronously, in-process, which for every earlier tool (own-DB
     writes only) was fine, but a real network call to a marketplace
-    needs retry-safety (CLAUDE.md #11) and must never run inline in an
-    HTTP request handler (CLAUDE.md #12/#13) - which is exactly where a
+    needs retry-safety (CONTRIBUTING.md #11) and must never run inline in an
+    HTTP request handler (CONTRIBUTING.md #12/#13) - which is exactly where a
     human clicking "approve" lands. So this handler only flips our own
     state to PENDING; the caller (apps/api's approve route, seeing this
     was a listing_publish recommendation) enqueues the actual

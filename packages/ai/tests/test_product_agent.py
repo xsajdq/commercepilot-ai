@@ -92,7 +92,7 @@ class TestBuildProductContentProposal:
         assert "no source data" in proposal.reason
 
     async def test_a_hallucinated_value_from_the_provider_is_overridden_to_unknown(self) -> None:
-        """CLAUDE.md #9/#18: even a provider that ignores instructions
+        """CONTRIBUTING.md #9/#18: even a provider that ignores instructions
         and confidently invents a spec value - as if steered by
         untrusted content in the product's own description - must never
         have that value survive into the proposal for a field we have

@@ -27,7 +27,7 @@ def generate_listing_publish_recommendation(tenant_id: str, offer_id: str) -> di
 
     Never publishes anything itself - like the pricing and product
     agents, it only ever proposes a Recommendation for a human to
-    approve (CLAUDE.md: medium/high-risk actions require human
+    approve (CONTRIBUTING.md: medium/high-risk actions require human
     approval). The actual marketplace call happens in
     `publish_listing_to_marketplace`, only after that approval, and only
     triggered by apps/api's approve route - not here.
@@ -51,7 +51,7 @@ async def _generate_listing_publish_recommendation(
         product = await db.get(Product, variant.product_id)
         price = await db.scalar(select(Price).where(Price.offer_id == offer.id))
 
-        # Idempotency (CLAUDE.md #11): never stack duplicate pending
+        # Idempotency (CONTRIBUTING.md #11): never stack duplicate pending
         # publish proposals for the same offer on a repeated run.
         existing = await db.scalar(
             select(Recommendation).where(
@@ -94,7 +94,7 @@ def publish_listing_to_marketplace(tenant_id: str, offer_id: str) -> dict:
     `request_listing_publish` approval leaves behind: only apps/api's
     approve route enqueues this, and only after `cp_policies.approve()`
     has already flipped the offer to `PENDING` and written its own
-    AuditEvent for that decision (CLAUDE.md #2 - every external mutation
+    AuditEvent for that decision (CONTRIBUTING.md #2 - every external mutation
     goes through a typed connector; #11 - retry-safe/idempotent; #12/#13
     - never inline in an HTTP request handler, which is exactly where
     that approval was made).

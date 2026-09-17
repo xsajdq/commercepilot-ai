@@ -24,7 +24,7 @@ class FakeAIProvider(AIProvider):
 
     Deliberately lets a test hand it an adversarial/hallucinated
     `response` (e.g. specification values an agent has no source data
-    for) to prove that CLAUDE.md #9's "never guess" guarantee is
+    for) to prove that CONTRIBUTING.md #9's "never guess" guarantee is
     enforced by the *agent's own code* after the call, not merely hoped
     for from a well-behaved model.
     """

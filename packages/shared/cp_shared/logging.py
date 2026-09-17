@@ -1,13 +1,13 @@
 """Structured JSON logging shared by apps/api and apps/worker (Phase 21).
 
-CLAUDE.md forbids ever logging access tokens, refresh tokens, API keys,
+CONTRIBUTING.md forbids ever logging access tokens, refresh tokens, API keys,
 customer personal data, or payment information. Discipline at each call
 site (never pass a secret to a logger) is the primary guarantee; this
 module is the defense-in-depth backstop, not a substitute for it - a
 `RedactingFilter` scrubs every record before it reaches a handler.
 
 The filter's coverage is deliberately honest about its limits rather
-than pretending to catch everything (CLAUDE.md #9's "don't guess/invent"
+than pretending to catch everything (CONTRIBUTING.md #9's "don't guess/invent"
 spirit applies here too):
 
 - Known sensitive field names (passed via `extra={...}` or already

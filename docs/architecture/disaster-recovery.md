@@ -53,7 +53,7 @@ before restarting everything blindly.
 4. Redis holds only the Celery broker/result backend and rate-limit
    counters - nothing that needs restoring; an empty Redis on a fresh
    server is a correct starting state (in-flight tasks are lost, which
-   is an acceptable, already-idempotent-by-design gap - see CLAUDE.md
+   is an acceptable, already-idempotent-by-design gap - see CONTRIBUTING.md
    #11, every connector sync/agent task is safe to simply re-run).
 5. Re-point DNS (Cloudflare) at the new server's IP if it changed.
 
@@ -75,7 +75,7 @@ the bad data. Steps:
    restore of an old backup over current production would also lose
    every legitimate change made since.
 4. Add a regression test for the bug before considering it resolved
-   (CLAUDE.md's "definition of done").
+   (CONTRIBUTING.md's "definition of done").
 
 ## What's not covered yet (honestly, not hidden)
 

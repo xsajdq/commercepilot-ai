@@ -43,7 +43,7 @@ def compute_dashboard_metrics(
     latest_catalog_issue_count: int | None = None,
 ) -> DashboardMetrics:
     """Phase 13's "dashboard" half - pure aggregation over already-loaded
-    data, no I/O, no AI (CLAUDE.md #10's "math is code" spirit extended
+    data, no I/O, no AI (CONTRIBUTING.md #10's "math is code" spirit extended
     to reporting, not just pricing: a count is a count, not something an
     LLM should be asked to compute). The "AI narrative" half
     (`cp_ai.agents.analytics_agent`) only ever narrates these exact

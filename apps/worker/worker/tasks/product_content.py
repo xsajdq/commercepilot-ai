@@ -20,7 +20,7 @@ def _get_provider() -> AIProvider:
     """A seam, not a hardcoded call: tests monkeypatch this to inject a
     `FakeAIProvider` instead of hitting the real Anthropic API. Business
     logic below only ever depends on the `AIProvider` interface
-    (CLAUDE.md #17), never on `AnthropicProvider` directly."""
+    (CONTRIBUTING.md #17), never on `AnthropicProvider` directly."""
     return AnthropicProvider(api_key=get_anthropic_api_key(), model=get_anthropic_model())
 
 
@@ -31,7 +31,7 @@ def generate_product_content_recommendation(tenant_id: str, product_id: str) -> 
     product and submits it into the Phase 8 approval queue.
 
     Never mutates a product itself - like the pricing agent, it only
-    ever proposes a Recommendation for a human to approve (CLAUDE.md:
+    ever proposes a Recommendation for a human to approve (CONTRIBUTING.md:
     medium/high-risk actions require human approval).
     """
     return asyncio.run(
@@ -49,7 +49,7 @@ async def _generate_product_content_recommendation(
         if product is None:
             return {"proposed": False, "reason": "product not found"}
 
-        # Idempotency (CLAUDE.md #11): never stack duplicate pending
+        # Idempotency (CONTRIBUTING.md #11): never stack duplicate pending
         # content proposals for the same product on a repeated run.
         existing = await db.scalar(
             select(Recommendation).where(

@@ -34,7 +34,7 @@ MODEL_PRICING: dict[tuple[str, str], ModelPrice] = {
 def compute_cost(
     *, provider: str, model: str, input_tokens: int, output_tokens: int
 ) -> Decimal | None:
-    """Deterministic cost estimate from real token counts (CLAUDE.md #10:
+    """Deterministic cost estimate from real token counts (CONTRIBUTING.md #10:
     this is math, done in code, never delegated to an LLM to compute
     about itself). Returns `None` - not a fabricated number - for a
     (provider, model) pair this table doesn't recognize; a caller should

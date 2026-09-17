@@ -1,7 +1,7 @@
 # packages/policies (`cp_policies`)
 
 Phase 8's approval engine: the `Recommendation -> PendingApproval ->
-Approved/Rejected -> Executing -> Success/Failed` workflow CLAUDE.md's
+Approved/Rejected -> Executing -> Success/Failed` workflow CONTRIBUTING.md's
 control flow ends in, for anything `cp_ai.ToolExecutor` gates above `LOW`
 risk (Phase 7). No HTTP routes yet - this is the engine only, tested via
 `apps/api`'s DB-integration suite; an approval queue UI/API is later

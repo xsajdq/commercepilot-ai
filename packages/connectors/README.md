@@ -21,7 +21,7 @@ Deliberately has **no dependency on `cp_domain` or `cp_shared`** - a
 connector talks to an external HTTP API, never to our database, and its
 DTOs are not the domain model. The sync engine (Phase 6) is what maps
 between a connector's `ConnectorProduct` and `cp_domain.Product`/`Variant`
-rows. This keeps the promise in CLAUDE.md #16 literal: an agent calling
+rows. This keeps the promise in CONTRIBUTING.md #16 literal: an agent calling
 through this interface cannot know or care which platform - or even
 whether there *is* a real platform - it's talking to.
 
@@ -171,7 +171,7 @@ IdoSell's official documentation (`idosell.com/developers`,
 `idosell.readme.io`) was network-blocked in the environment this was
 built in, and the roadmap itself calls for "own research first, don't
 force the WooCommerce-shaped abstraction" here. Rather than guess field
-names CLAUDE.md #9 forbids inventing, this connector draws a hard,
+names CONTRIBUTING.md #9 forbids inventing, this connector draws a hard,
 documented line between confirmed and unconfirmed, and its methods are
 split into two honesty tiers:
 

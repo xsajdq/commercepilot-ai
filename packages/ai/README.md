@@ -8,7 +8,7 @@ abstraction).
 
 ## `cp_ai.tools`
 
-The control flow from CLAUDE.md, minus the Policy Engine and the real
+The control flow from CONTRIBUTING.md, minus the Policy Engine and the real
 Approval workflow (both Phase 8):
 
 ```
@@ -21,7 +21,7 @@ AI -> Tool -> Validation -> [Policy] -> Risk -> Approval
   job, never from a tool argument - a tool's `args_model` is refused at
   registration time if it declares a `tenant_id` field at all
   (`UnsafeToolSchemaError`), so there's no argument for even a
-  prompt-injected model to smuggle one through (CLAUDE.md #7, #18).
+  prompt-injected model to smuggle one through (CONTRIBUTING.md #7, #18).
 - **`ToolResult`** - `success`/`data`/`error`, plus `entity_type`/
   `entity_id`/`before`/`after` for mutations, which feed straight into
   the `AuditEvent` the executor writes. `ToolResult.pending_approval(...)`
@@ -32,10 +32,10 @@ AI -> Tool -> Validation -> [Policy] -> Risk -> Approval
   `handler` that does the work.
 - **`ToolPermission`** - `risk_level` (`LOW`/`MEDIUM`/`HIGH`) and
   `mutates`. `requires_approval` is `True` for anything above `LOW`
-  (CLAUDE.md #4). Tracked separately from `mutates` because they answer
+  (CONTRIBUTING.md #4). Tracked separately from `mutates` because they answer
   different questions: risk decides whether a human has to sign off
   first; `mutates` decides whether a successful run gets an audit log
-  (CLAUDE.md #5) - a high-risk read needs approval but audits nothing,
+  (CONTRIBUTING.md #5) - a high-risk read needs approval but audits nothing,
   a low-risk write is auditable but never blocks.
 - **`ToolRegistry`** - registers/looks up tools by name, and produces
   `tool_definitions()` in the name/description/input_schema shape most
@@ -62,7 +62,7 @@ them):
   mutation).
 - **`update_price`** (`HIGH` risk, mutates) - changes an offer's price
   in *our own* domain model only. It deliberately does not push the
-  change to the marketplace: per CLAUDE.md #2 ("every external mutation
+  change to the marketplace: per CONTRIBUTING.md #2 ("every external mutation
   must go through a typed connector") and #10 ("deterministic business
   calculations... must not be delegated to an LLM"), pushing a real
   price change is the pricing agent's job (Phase 9), built on the
@@ -84,7 +84,7 @@ them):
   (`Offer.status`: `DRAFT` -> `PENDING`) - deliberately, since
   `cp_policies.approve()` calls a tool's handler synchronously inside an
   HTTP request handler, and a real network call there would violate
-  CLAUDE.md #12/#13. The actual `publish_offer` connector call happens
+  CONTRIBUTING.md #12/#13. The actual `publish_offer` connector call happens
   in `apps/worker`'s `publish_listing_to_marketplace` Celery task,
   enqueued by apps/api's approve route only after this tool's handler
   has already succeeded - see the roadmap's Phase 11 writeup for the
@@ -98,7 +98,7 @@ them):
 
 ## `cp_ai.providers`
 
-Phase 10's `AIProvider` abstraction (CLAUDE.md #17: replaceable, never a
+Phase 10's `AIProvider` abstraction (CONTRIBUTING.md #17: replaceable, never a
 vendor SDK hardcoded into business logic):
 
 - **`AIProvider`** - one method, `generate_structured(*, system_prompt,
@@ -119,7 +119,7 @@ vendor SDK hardcoded into business logic):
   canned response regardless of the prompt and records every call, for
   testing an agent's own decision logic without a real provider. Lets a
   test hand it a deliberately adversarial/hallucinated response to prove
-  an agent enforces CLAUDE.md #9 in code, not merely by asking nicely -
+  an agent enforces CONTRIBUTING.md #9 in code, not merely by asking nicely -
   see the product agent below.
 
 ## `cp_ai.agents.pricing_agent`
@@ -131,7 +131,7 @@ offer_id, ...)` decides *whether* a price is worth proposing a change
 for and, if so, builds the proposal - it never mutates anything itself.
 It pulls `product.cost`/`vat_rate` (converting the stored percentage to
 a fraction), calls `cp_pricing.compute_price_bounds` (the actual math -
-CLAUDE.md #10, this package never re-derives it), and - only when the
+CONTRIBUTING.md #10, this package never re-derives it), and - only when the
 computed `recommended_price` differs from the current one and the
 margin targets are actually reachable - returns a `PricingProposal`
 carrying the exact `update_price` tool call (`tool_name`/
@@ -161,7 +161,7 @@ returned a plausible-looking value.
 
 That overwrite is the load-bearing part. `product.description` is fed
 into the prompt as context, and it's untrusted external content per
-CLAUDE.md #18 - potentially synced from a marketplace listing an
+CONTRIBUTING.md #18 - potentially synced from a marketplace listing an
 attacker controls, and possibly containing text trying to steer the
 model into inventing a spec value it has no basis for. The system prompt
 asks the model not to; this function does not trust that it complied.
@@ -215,7 +215,7 @@ offers on any connection ("orphaned"). Every finding is a `CatalogIssue`
 narrow step that decides which of those findings get turned into an
 actual `Recommendation`: today, only `ORPHAN_PRODUCT` (via
 `update_product_status`, archiving it). Every other issue type has no
-safe automated fix - a missing price/EAN can't be invented (CLAUDE.md
+safe automated fix - a missing price/EAN can't be invented (CONTRIBUTING.md
 #9) and a wrong price is the pricing agent's own job, not this one's to
 re-derive - so it stays a plain finding, matching
 `docs/architecture/product-vision.md`'s own framing that not every
@@ -241,7 +241,7 @@ half - `build_dashboard_narrative(*, provider, metrics)` turns a
 `DashboardMetrics` into a short prose `summary` plus `highlights` via
 `AIProvider.generate_structured`.
 
-Unlike the product agent (Phase 10), there's no CLAUDE.md #18
+Unlike the product agent (Phase 10), there's no CONTRIBUTING.md #18
 hallucination-override step here: every number handed to the model is
 our own deterministic computation, never untrusted external content
 (a product description, a review, ...) an attacker could steer - there's

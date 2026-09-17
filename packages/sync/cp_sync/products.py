@@ -50,7 +50,7 @@ def _effective_sku(connection_id: uuid.UUID, product: ConnectorProduct) -> str:
     ever gets synced" bug this exists to prevent.
 
     A connector-scoped synthetic sku keeps each one distinct without
-    inventing a real spec value (CLAUDE.md #9 is about customer-facing
+    inventing a real spec value (CONTRIBUTING.md #9 is about customer-facing
     data, not this package's own internal matching key) - the `noSKU-`
     prefix keeps it visibly synthetic, never presented as the
     platform's real SKU.
@@ -104,7 +104,7 @@ async def sync_products(
 
     A single product's mapping/DB error is recorded in the result and
     does not stop the rest of the page or subsequent pages from being
-    processed (CLAUDE.md: partial failures must not abort a whole sync).
+    processed (CONTRIBUTING.md: partial failures must not abort a whole sync).
     Transient failures fetching a page (rate limits, network errors) are
     retried with backoff (see `cp_sync.retry`); a page fetch that
     exhausts its retries stops the sync early with `fatal_error` set,

@@ -60,7 +60,7 @@ class PortalOut(BaseModel):
 async def _get_or_create_subscription(db: AsyncSession, tenant_id: uuid.UUID) -> Subscription:
     """Same get-or-create shape as `worker.cost_guard.get_or_create_subscription`,
     deliberately re-implemented rather than imported: apps/api and
-    apps/worker never import each other's code (CLAUDE.md), only
+    apps/worker never import each other's code (CONTRIBUTING.md), only
     `packages/`, and this needs a live `AsyncSession` + `cp_domain`,
     which `cp_billing` intentionally doesn't depend on (it stays pure
     math - see `packages/billing/README.md`)."""

@@ -1,127 +1,50 @@
 # CommercePilot
 
-AI e-commerce manager: monitors, analyzes, and proposes actions across a
-store and its marketplaces, routing anything risky through human approval
-before it touches a real store. Working name — see `CLAUDE.md` for the
-full mission, architecture principles, and the mandatory
-`AI → Tool → Validation → Policy → Risk → Approval → Execution →
-Verification → Audit Log` control flow every mutation follows.
+AI e-commerce manager for multi-store, multi-marketplace sellers. It
+watches your catalog, pricing, and listings, proposes changes, and routes
+anything risky through human approval before it ever touches a real
+store — never a direct, unchecked write.
 
-Built in phases; see `docs/architecture/roadmap.md` for what's done and
-what's next. This repo is currently at the end of **Phase 22**
-(Beta readiness): registration, login, tenant-scoped JWT sessions,
-role-based membership, the full e-commerce domain model, real
-WooCommerce + Allegro + Shoper + PrestaShop + IdoSell connectors, a sync engine, the AI tool system +
-approval engine (`Recommendation -> PendingApproval -> Approved/Rejected
--> Executing -> Success/Failed`), a deterministic pricing engine,
-six working agents (pricing, product content, listing publication,
-catalog health, analytics, competition), and Stripe-backed subscription
-billing with a real AI usage/cost guard are all live - plus a minimal
-web UI (connections, products with competitor-price tracking, catalog,
-recommendations/approvals, a live analytics dashboard, billing/plans)
-wired to a real HTTP API on top of all of it, so the whole pipeline is
-clickable end to end, not just testable from the CLI. The listing agent was the first
-AI-approved action to reach a real marketplace (via a typed connector,
-CLAUDE.md #2) rather than only our own database; the catalog and
-analytics agents are the two real uses of the Phase-2-scaffolded `AIJob`
-table; the competition agent closed a gap that had existed since
-Phase 9 - the pricing engine always accepted competitor prices, nothing
-had ever actually supplied them. Phase 15 populated Celery Beat's
-`beat_schedule` (empty since Phase 0): a daily 01:00 UTC sync of every
-connection and a 02:00 UTC fan-out of the catalog/analytics/pricing/
-listing agents across every tenant, each dispatcher task doing nothing
-but enumerate real rows and enqueue the same tasks the manual UI buttons
-already call - no new agent, model, or route needed. Phase 16 was a
-frontend-only pass: `AppShell` moved from a single horizontal top nav to
-a dark, brand-violet left sidebar (`lucide-react` icons, an off-canvas
-drawer on mobile), every page was swept onto a real design system
-(a custom `brand` color scale, `Plus Jakarta Sans` via `next/font/google`,
-shared `.card`/`.btn-primary`/`.input` tokens) instead of unstyled
-Tailwind gray/black defaults, and the landing/login/register pages got a
-matching dark gradient treatment - no backend changes, same data and
-behavior underneath. Phase 17 added `ShoperConnector`, a third real
-platform integration (alongside WooCommerce and Allegro) for the Polish
-e-commerce platform Shoper - the connector manages its own bearer-token
-auth internally (a caller supplies client ID/secret, same as
-WooCommerce's consumer key/secret), and its README documents exactly
-which parts of Shoper's API shape are confirmed vs. best-effort inferred
-(the official docs site was unreachable from this environment). Phase 18
-added `PrestaShopConnector`, the fourth real integration - unlike
-Shoper, PrestaShop's Webservice API could be confirmed against its own
-official docs and published Postman collection: it outputs JSON but
-cannot parse JSON input (every write is real XML), and stock quantity
-lives in its own separate `stock_availables` resource rather than on
-the product itself. Phase 19 added `IdoSellConnector`, the fifth and
-last integration - and a deliberately incomplete one: IdoSell's docs
-were also unreachable, and only its auth header, base URL, and one
-field name could be confirmed, so reads return real ids with every
-other field honestly blank rather than guessed, and every write method
-raises outright rather than risk corrupting a real store's inventory or
-pricing. Every `ConnectionPlatform` now has a real connector. Phase 20
-added Stripe subscriptions (Free/Starter/Pro) and a real AI usage/cost
-guard: `AIProvider.generate_structured` now returns the provider's real
-token usage alongside its result (never estimated), a new
-dependency-free `cp_billing` package computes plan budgets and
-deterministic per-token cost from a maintained model rate card, and
-`apps/worker`'s cost guard checks a tenant's real spend-this-month
-against their plan's budget before every billed AI call, blocking (not
-crashing) the ones that would go over. `apps/api` exposes `GET /billing`
-plus Stripe checkout/portal/webhook routes, and `apps/web` gained a
-`/billing` page. Phase 21 hardened both backend apps for production:
-structured JSON logging with secret redaction, Sentry error tracking,
-Prometheus metrics (with a local Grafana dashboard), Redis-backed
-per-IP rate limiting, security response headers, zero-downtime
-`ENCRYPTION_KEY`/`SECRET_KEY` rotation, real backup/restore scripts
-(verified with an actual drill against a real database), a load test,
-and a disaster-recovery runbook - see `docs/architecture/roadmap.md`'s
-Phase 21 writeup for what's real vs. what still needs an actual
-production server to exist. Phase 22's literal roadmap goal ("5 pilot
-stores") is a recruiting outcome this repo can't execute on its own, so
-it built the product/support surface real pilot merchants would need
-instead: `POST /connections` now runs a genuine pre-flight check against
-the real platform API (`worker.test_connection`) instead of optimistically
-assuming success, with a matching onboarding UX (per-platform credential
-help, a manual "Test connection" button) on the Connections page; a new,
-deliberately separate `is_platform_admin` authorization axis backs
-read-only cross-tenant support views (`/admin/tenants`,
-`/admin/tenants/{id}`) with no mutation route at all under `/admin/*`;
-and `docs/operations/pilot-onboarding.md` /
-`docs/operations/support-runbook.md` document the merchant-facing setup
-steps and the support triage flow built around those admin views plus
-Phase 21's observability stack.
+```
+AI → Tool → Validation → Policy → Risk → Approval
+   → Execution → Verification → Audit Log
+```
+
+Every mutation follows that chain. No exceptions for "obviously safe"
+actions.
+
+## What it does
+
+- **Connects** to WooCommerce, Allegro, Shoper, PrestaShop, and IdoSell
+  stores through typed, retry-safe connectors.
+- **Syncs** products, offers, stock, and orders on a schedule.
+- **Analyzes** catalog health, margins, and competitor pricing.
+- **Proposes** pricing changes, product content, and listing publication —
+  AI reasons and recommends, deterministic code does the math.
+- **Gates** every write behind validation, policy checks, and (for
+  medium/high-risk actions) human approval, with a full audit trail.
+- **Bills** usage through Stripe with a real per-tenant AI cost guard.
+
+## Stack
+
+FastAPI + SQLAlchemy + Alembic + Pydantic · Next.js + TypeScript +
+Tailwind + shadcn/ui · Celery + Redis · PostgreSQL · Docker Compose +
+Traefik.
 
 ## Repository layout
 
 ```
-apps/
-  api/        FastAPI backend (owns the DB engine, auth, HTTP routes)
-  web/        Next.js frontend
-  worker/     Celery worker + beat scheduler
-packages/
-  shared/     cp_shared - the shared SQLAlchemy Base + mixins
-  domain/     cp_domain - the e-commerce domain model (products, orders, ...)
-  connectors/ cp_connectors - CommerceConnector interface + WooCommerce/Allegro/Shoper/PrestaShop/IdoSell
-  sync/       cp_sync - the sync engine (retry/backoff, idempotent upsert)
-  pricing/    cp_pricing - deterministic pricing engine (no AI, no deps)
-  analytics/  cp_analytics - deterministic dashboard metrics (no AI, no deps)
-  ai/         cp_ai - tool system, AIProvider, all five agents
-  policies/   cp_policies - the approval engine
-infrastructure/
-  docker/ hetzner/ traefik/ backups/
-migrations/   Alembic migrations (auth tables + domain model)
-alembic.ini   Run `alembic upgrade head` from the repo root
-tests/
-  unit/ integration/ e2e/
-docs/
-  architecture/ agents/ connectors/ api/ security/
+apps/          api (FastAPI) · web (Next.js) · worker (Celery)
+packages/      domain · connectors · sync · pricing · analytics ·
+               ai · policies · billing · shared
+infrastructure/ docker · traefik · backups
+migrations/    Alembic
+tests/         unit · integration · e2e
+docs/          architecture · agents · connectors · api · security
 ```
 
-`packages/shared` and `packages/domain` are installed as editable local
-Python packages (see `apps/api/requirements.txt`) rather than living
-inside `apps/api`, so other packages can depend on the domain model
-without depending on the FastAPI app itself. `packages/connectors` is
-fully standalone (no dependency on the domain model or apps/api at all -
-see its own README) and tested on its own; run its tests with:
+`packages/connectors` is fully standalone (no dependency on the domain
+model or `apps/api`) and has its own test suite:
 
 ```bash
 cd packages/connectors
@@ -130,41 +53,35 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-## Local development
+## Getting started
 
 Prerequisites: Docker + Docker Compose.
 
 ```bash
-cp .env.example .env   # edit as needed
+cp .env.example .env   # fill in real values as needed
 docker compose up --build
 ```
 
-This starts Traefik, the Next.js frontend, the FastAPI backend, a Celery
-worker, a Celery beat scheduler, Postgres, and Redis.
+This brings up Traefik, the Next.js frontend, the FastAPI backend, a
+Celery worker + beat scheduler, Postgres, and Redis. The API container
+runs migrations on startup.
 
-- Frontend: http://localhost:3000 (or http://commercepilot.localhost via
-  Traefik) - `/register`, `/login`, `/dashboard`, `/connections`,
-  `/products`, `/catalog`, `/recommendations`
-- API: http://localhost:8000/docs (or http://api.commercepilot.localhost)
-- API health: http://localhost:8000/health and `/health/ready` (checks
-  Postgres + Redis connectivity)
+- Frontend: http://localhost:3000
+- API: http://localhost:8000/docs
+- Health: http://localhost:8000/health, `/health/ready`
 - Traefik dashboard: http://localhost:8080
 
-The `api` container runs `alembic upgrade head` on startup, so a fresh
-`docker compose up` migrates the database automatically.
-
-### Running each app outside Docker
+### Running services outside Docker
 
 ```bash
-# API - needs a local Postgres (commercepilot_test db) and Redis; see
-# .env.example for the expected connection strings
+# API — needs local Postgres + Redis, see .env.example
 cd apps/api
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 pytest
 
-# Migrations (from the repo root, same venv)
+# Migrations (repo root, same venv)
 alembic upgrade head
 
 # Worker
@@ -179,9 +96,15 @@ npm install
 npm run dev    # also: npm run build / npm run lint / npm run typecheck
 ```
 
+## Project status
+
+Built in phases, each independently testable — see
+[`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) for what's
+shipped and what's next.
+
 ## Contributing
 
-Read `CLAUDE.md` first — it lists the non-negotiable architecture rules
-(tenant isolation, no arbitrary AI-executed HTTP/SQL, deterministic
-pricing math, mandatory audit logging, etc.) that every change must
-respect.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the
+non-negotiable rules (tenant isolation, no arbitrary AI-executed
+HTTP/SQL, deterministic pricing math, mandatory audit logging) that every
+change must respect.

@@ -39,7 +39,7 @@ async def build_dashboard_narrative(
     the `AIJob` for the cost guard - this function knows nothing about
     billing itself).
 
-    Unlike the product agent (Phase 10), this has no CLAUDE.md #18
+    Unlike the product agent (Phase 10), this has no CONTRIBUTING.md #18
     hallucination-override step: every number handed to the model here
     is our own deterministic computation, not untrusted external content
     (a product description, a review, ...) an attacker could steer -

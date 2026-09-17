@@ -1,7 +1,7 @@
 # packages/billing (`cp_billing`)
 
 Phase 20's deterministic billing math - plain code, zero dependencies
-(not even on `cp_domain`), same "math is code" philosophy CLAUDE.md #10
+(not even on `cp_domain`), same "math is code" philosophy CONTRIBUTING.md #10
 already established for `cp_pricing` and `cp_analytics`. Deciding
 whether a tenant is over their AI budget is exactly this kind of
 calculation - a comparison, not a judgement call an LLM should make
@@ -11,7 +11,7 @@ about its own spend.
 
 `PLAN_AI_BUDGETS`: a monthly AI-spend budget in USD per plan tier
 (`FREE`/`STARTER`/`PRO`, plain string constants - our own product
-decision, not an external fact, so no CLAUDE.md #9 concern in hardcoding
+decision, not an external fact, so no CONTRIBUTING.md #9 concern in hardcoding
 it). `ai_budget_for_plan(plan)` raises `KeyError` for an unrecognized
 plan rather than silently defaulting - a new plan added without updating
 this table should fail loudly.

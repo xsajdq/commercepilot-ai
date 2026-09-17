@@ -1,7 +1,7 @@
 # packages/pricing (`cp_pricing`)
 
 Phase 9's deterministic pricing engine - plain code, no dependencies on
-`cp_domain`, `cp_shared`, or anything async. Per CLAUDE.md #10
+`cp_domain`, `cp_shared`, or anything async. Per CONTRIBUTING.md #10
 ("deterministic business calculations must not be delegated to an LLM"),
 this is the entire math layer; the AI recommendation on top
 (`cp_ai.agents.pricing_agent`) only decides *whether* to propose what
@@ -10,7 +10,7 @@ this engine computed, never re-derives the numbers itself.
 ## `cp_pricing.compute_price_bounds(inputs: PricingInputs) -> PricingResult`
 
 `PricingInputs`: `cost` (required - `UNKNOWN`/`None` costs are the
-caller's problem to filter out before calling this, per CLAUDE.md #9),
+caller's problem to filter out before calling this, per CONTRIBUTING.md #9),
 `vat_rate`/`marketplace_fee_rate`/`payment_fee_rate` (fractions of gross
 price, e.g. `0.23` not `23`), `shipping_cost` (absolute, assumes the
 common "free shipping to the buyer" model - it's the seller's own cost,

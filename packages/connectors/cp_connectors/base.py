@@ -15,11 +15,11 @@ class CommerceConnector(Protocol):
     """Every platform integration (WooCommerce, Allegro, ...) implements
     this. Callers - the sync engine, AI tools - only ever see this
     interface, never a platform SDK, so an agent cannot know or care
-    which platform it's talking to (CLAUDE.md #16).
+    which platform it's talking to (CONTRIBUTING.md #16).
 
     Every method must be safe to retry: a network timeout followed by a
     retry must never double-create a product or double-apply a price
-    change (CLAUDE.md #11). Concrete implementations are responsible for
+    change (CONTRIBUTING.md #11). Concrete implementations are responsible for
     that - e.g. by using the platform's own idempotency keys where
     available, or by checking-then-acting.
     """

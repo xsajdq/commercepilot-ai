@@ -100,7 +100,7 @@ async def approve_endpoint(
     # A listing_publish approval only ever gets our own Offer to PENDING
     # (cp_ai's request_listing_publish tool is DB-only, see its own
     # docstring for why) - the real marketplace call is a Celery task,
-    # never inline here (CLAUDE.md #12/#13), enqueued only now that a
+    # never inline here (CONTRIBUTING.md #12/#13), enqueued only now that a
     # human has actually approved it.
     if (
         recommendation.type is RecommendationType.LISTING_PUBLISH

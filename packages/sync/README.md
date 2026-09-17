@@ -83,7 +83,7 @@ them combined, each sync overwriting the last (reported as "only 1
 product ever gets synced" against a real WooCommerce store).
 `_effective_sku` now derives a connector-scoped synthetic sku
 (`noSKU-<connection>-<external_id>`) for these, keeping each one
-distinct without inventing a real spec value (CLAUDE.md #9 is about
+distinct without inventing a real spec value (CONTRIBUTING.md #9 is about
 customer-facing data, not this package's own internal matching key).
 
 Tested via `apps/api/tests/test_sync_products.py` (DB-integration tests

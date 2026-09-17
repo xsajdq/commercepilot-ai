@@ -98,14 +98,14 @@ both it and `apps/api`'s own auth tables register on. Both are installed
 as editable local packages (`pip install -e packages/shared -e
 packages/domain` - see `apps/api/requirements.txt`); this keeps other
 packages able to depend on the domain model without depending on
-`apps/api`, per CLAUDE.md's layering.
+`apps/api`, per CONTRIBUTING.md's layering.
 
 Design notes: `Offer` is a `Variant` listed on one `Connection`
 (store/marketplace account) - `Price`/`Stock` hang off the offer (one row
 each, current value only; history lives in `AuditEvent`, written starting
 Phase 8). `Connection.encrypted_credentials` is Fernet-encrypted
 (`app/core/crypto.py`, a dedicated `ENCRYPTION_KEY` separate from
-`SECRET_KEY`) - never plaintext, per CLAUDE.md. Missing manufacturer data
+`SECRET_KEY`) - never plaintext, per CONTRIBUTING.md. Missing manufacturer data
 (`ean`, `cost`, `vat_rate`, ...) is nullable/`NULL`, never guessed.
 Migration verified upgrade → downgrade → upgrade against real Postgres
 (20 tables total with Phase 1's auth tables); 10 new ORM-level tests in
@@ -126,7 +126,7 @@ the sync engine (Phase 6) will map between `ConnectorProduct` and
 implementing the interface (12 tests in
 `packages/connectors/tests/test_mock_connector.py`, run standalone with
 no DB/services needed) - proving the interface end to end before any
-real platform exists, per CLAUDE.md #16 (an agent must never know or
+real platform exists, per CONTRIBUTING.md #16 (an agent must never know or
 care which platform, or even whether a real one, it's talking to).
 
 Phase 4 complete: `cp_connectors.WooCommerceConnector` implements
@@ -208,7 +208,7 @@ future agent must go through - `ToolContext` (a tool call's `tenant_id`/
 actor identity, always injected by the caller, never accepted as a tool
 argument: `ToolRegistry.register` refuses any `args_model` that declares
 a `tenant_id` field at all, so there's no argument even a
-prompt-injected model could smuggle one through - CLAUDE.md #7, #18),
+prompt-injected model could smuggle one through - CONTRIBUTING.md #7, #18),
 `ToolResult` (success/data/error, plus entity/before/after for
 mutations), `ToolSchema` (name, description, Pydantic `args_model`,
 `ToolPermission`, handler), `ToolPermission` (`risk_level` +
@@ -283,7 +283,7 @@ reject path leaving the price untouched, tenant isolation, and the
 double-decision/not-proposed guards), bringing `apps/api` to 57.
 
 Phase 9 complete: new `packages/pricing` (`cp_pricing`) is the
-deterministic pricing engine CLAUDE.md #10 requires ("math is code") -
+deterministic pricing engine CONTRIBUTING.md #10 requires ("math is code") -
 zero dependencies, not even on `cp_domain`. `compute_price_bounds`
 takes cost/VAT/marketplace-fee/payment-fee/shipping (all rates as
 fractions, not percentages) plus target/minimum margin and optional
@@ -309,7 +309,7 @@ actually runs this against a real `Offer`/`Price`/`Product` and, if it
 gets a proposal back, feeds it straight into Phase 8's
 `propose_recommendation` + `submit_for_approval` - the full chain from
 deterministic math to a human's approval queue, with an idempotency
-check (CLAUDE.md #11) so a repeated run never stacks duplicate pending
+check (CONTRIBUTING.md #11) so a repeated run never stacks duplicate pending
 recommendations for the same offer.
 
 Tested: `packages/pricing`'s own 17 tests (pure math, no DB, new CI
@@ -322,12 +322,12 @@ double-proposes on a second run), bringing `apps/worker` to 8.
 AI agents exist now, but only this one, and only as a deterministic
 decision-maker wearing an "AI-proposed" hat - no real LLM call happens
 anywhere in this phase. Prompts and the `AIProvider` abstraction
-(Anthropic/OpenAI, interchangeable per CLAUDE.md #17) still don't exist
+(Anthropic/OpenAI, interchangeable per CONTRIBUTING.md #17) still don't exist
 - nothing has needed to generate text yet. That starts at Phase 10's
 product agent.
 
 Phase 10 complete: `cp_ai.providers.AIProvider` is the abstraction
-CLAUDE.md #17 requires - one method, `generate_structured(*,
+CONTRIBUTING.md #17 requires - one method, `generate_structured(*,
 system_prompt, user_prompt, schema, schema_name) -> dict` - so an agent
 never depends on a vendor SDK directly. `AnthropicProvider` is the first
 concrete implementation, using Anthropic's tool-use mechanism to force
@@ -347,7 +347,7 @@ source data for, **forces the literal string `"UNKNOWN"` into the
 result after the call returns** - overwriting whatever the model said,
 even a plausible-looking invented value. That overwrite matters because
 `product.description` feeds the prompt as context and is untrusted
-external content per CLAUDE.md #18 - potentially synced from a listing
+external content per CONTRIBUTING.md #18 - potentially synced from a listing
 an attacker controls, possibly trying to steer the model into inventing
 a spec. The system prompt asks it not to; the code does not trust that
 it complied. A new builtin tool, `update_product_content` (`MEDIUM`
@@ -397,7 +397,7 @@ clickable, not just testable:
   `send_task`s into the same Redis broker. Approving/rejecting calls
   `cp_policies` directly and synchronously (not via Celery): the
   resulting DB write is fast and local, unlike an actual sync or an LLM
-  call, so CLAUDE.md #13's "no long-running jobs in a request handler"
+  call, so CONTRIBUTING.md #13's "no long-running jobs in a request handler"
   doesn't apply to it. `cp_ai`, `cp_pricing`, and `cp_policies` moved
   from apps/api's test-only dependencies to its real ones.
 - `apps/web` gained a shared `AppShell` (nav + session guard) and three
@@ -458,7 +458,7 @@ The interesting design problem this phase actually had to solve:
 inside apps/api's `/recommendations/{id}/approve` HTTP handler - fine for
 every earlier tool (`update_price`, `update_product_content`), which only
 ever touch our own DB, but wrong for a tool whose whole point is a real
-network call to a marketplace (CLAUDE.md #11 - retry-safe; #12/#13 -
+network call to a marketplace (CONTRIBUTING.md #11 - retry-safe; #12/#13 -
 never inline in an HTTP handler). So `request_listing_publish`'s handler
 stays DB-only (`DRAFT` -> `PENDING`) and the actual connector call is a
 new Celery task, `worker.publish_listing_to_marketplace` - enqueued not
@@ -474,8 +474,8 @@ else (a network-level failure) is left to propagate so Celery's own
 retry/failure tracking handles it rather than permanently marking a
 possibly-still-retryable offer as broken - confirmed for real, not just
 in a test: running this against the actual `AllegroConnector` with fake
-credentials in this sandboxed environment hit an outbound-network proxy
-block (`httpx.ProxyError`, not a `ConnectorError`), and the offer
+credentials and no outbound network access hit a proxy block
+(`httpx.ProxyError`, not a `ConnectorError`), and the offer
 correctly stayed `PENDING` rather than flipping to `ERROR`.
 
 Fixed along the way: `cp_sync.products._upsert_product` never actually
@@ -517,7 +517,7 @@ and an `ACTIVE` product with no offers on any connection at all
 `docs/architecture/product-vision.md`'s own framing ("18,421 products →
 analysis → 127 problems → 43 recommendations → 17 require approval"),
 **not every problem becomes a `Recommendation`** - a missing price or
-EAN has no safe fix to propose (CLAUDE.md #9: never guess), and a wrong
+EAN has no safe fix to propose (CONTRIBUTING.md #9: never guess), and a wrong
 price is the pricing agent's own job, not this one's to re-derive. Only
 the orphaned-product case maps to something unambiguous and safe: a new
 builtin tool, `update_product_status` (`MEDIUM` risk, mutates
@@ -582,7 +582,7 @@ Reproduced directly before fixing (3 `MockConnector` products with
 `sku=""` left exactly 1 `Product` row), then fixed with
 `_effective_sku()` - a connector-scoped synthetic sku
 (`noSKU-<connection>-<external_id>`) for these, keeping each one
-distinct without inventing a real spec value (CLAUDE.md #9 is about
+distinct without inventing a real spec value (CONTRIBUTING.md #9 is about
 customer-facing data, not this package's own internal matching key). 4
 new tests in `apps/api/tests/test_sync_products.py`.
 
@@ -601,13 +601,13 @@ offers where both are known - `None`, not `0`, when nothing qualifies,
 since `0` would misleadingly read as "no margin" rather than "no
 data"), plus pass-through recommendation/catalog-issue counts. `apps/api`
 gained `GET /analytics/dashboard` - live, synchronous, computed fresh on
-every request from a handful of fast SELECTs (CLAUDE.md #13 doesn't
+every request from a handful of fast SELECTs (CONTRIBUTING.md #13 doesn't
 apply to a quick aggregate query, only to genuinely long-running work).
 
 **AI narrative (the layer on top):** `cp_ai.agents.analytics_agent
 .build_dashboard_narrative` turns a `DashboardMetrics` into a short
 prose summary via `AIProvider.generate_structured`. Unlike the product
-agent (Phase 10), it needs no CLAUDE.md #18 hallucination-override step
+agent (Phase 10), it needs no CONTRIBUTING.md #18 hallucination-override step
 - every number it's given is our own deterministic computation, not
 untrusted external content an attacker could steer; there's nothing
 here for a model to be tricked into inventing *from*. Read-only
@@ -626,9 +626,9 @@ Verified against the real running stack: registered a tenant, hit
 margin), added a connection + a product (cost 40, price 100, stock 10)
 and re-checked it - `total_catalog_value: "1000.00"`,
 `average_margin_rate: "0.6"`, both correct. Triggered the narrative
-task with no `ANTHROPIC_API_KEY` configured in this sandboxed
-environment (expected here - real credentials aren't available) and
-confirmed it fails exactly as designed: the `AIJob` lands `FAILED` with
+task with no `ANTHROPIC_API_KEY` configured (expected in local dev -
+real credentials aren't set) and confirmed it fails exactly as
+designed: the `AIJob` lands `FAILED` with
 `error_message: "'ANTHROPIC_API_KEY'"`, the worker doesn't crash, and
 the frontend's Dashboard page degrades gracefully (shows "no insight
 generated yet" rather than erroring) since `narrative` is `null` on a
@@ -719,7 +719,7 @@ no business logic of its own to keep correct in two places:
 
 - `dispatch_daily_sync` (Beat: 01:00 UTC) - one `worker.sync_connection`
   per `Connection`, across every tenant. Already retry-safe/idempotent
-  (CLAUDE.md #11), so fanning it out daily needs no new safety net.
+  (CONTRIBUTING.md #11), so fanning it out daily needs no new safety net.
 - `dispatch_daily_recommendations` (Beat: 02:00 UTC, an hour after sync -
   a pragmatic staggering, not a guaranteed happens-before; Celery gives no
   ordering guarantee between two Beat entries, and a real sync-then-recommend
@@ -736,7 +736,7 @@ until Phase 20 ("Billing"), auto-triggering it for every product across
 every tenant, daily, unbounded, is a real cost risk this phase isn't the
 place to accept - a human still clicks "Generate content" per product
 until that guard exists. Every task this scheduler *does* dispatch only
-ever proposes a `Recommendation` (CLAUDE.md #4/#5 approval + audit still
+ever proposes a `Recommendation` (CONTRIBUTING.md #4/#5 approval + audit still
 apply downstream) - the risk being managed here is API spend, not safety.
 
 Verified against the real running stack, not just the mocked-`.delay()`
@@ -750,7 +750,7 @@ correct for the seeded data - and the worker log showed the real fan-out:
 `worker.sync_connection` tasks actually received and executed by the
 live worker process one at a time (each against a fake store URL,
 correctly finishing with a caught `403 Forbidden` rather than crashing -
-expected with no real credentials in this sandbox, and exactly the
+expected with no real credentials configured, and exactly the
 graceful-partial-failure behavior `cp_sync` was built for back in Phase
 6). `dispatch_daily_recommendations` returned
 `{"tenants_processed": 8, "pricing_checks_queued": 7,
@@ -793,7 +793,7 @@ redesigning it there updated the whole app's navigation in one place,
 with zero changes needed to any individual page. On narrow viewports the
 sidebar becomes an off-canvas drawer (a hamburger button in a slim top
 bar opens it, an overlay + an explicit close button dismiss it, and
-clicking a nav link closes it too) rather than disappearing - CLAUDE.md
+clicking a nav link closes it too) rather than disappearing - CONTRIBUTING.md
 doesn't mandate mobile support, but a real dashboard a human approves
 things from should not become unusable on a phone.
 
@@ -826,7 +826,7 @@ No new tests: this phase changed markup/styling and one interaction
 (mobile drawer open/close), not business logic - no domain model,
 migration, agent, or API route was touched, so no package's test count
 changes. New frontend dependency: `lucide-react` (icons for the sidebar
-and stat cards), matching CLAUDE.md's stated stack
+and stat cards), matching CONTRIBUTING.md's stated stack
 (`shadcn/ui`-style tooling commonly pairs with it).
 
 **Phase 16 follow-up - a real visual identity, not just a layout change.**
@@ -843,7 +843,7 @@ is needed - primary buttons, active nav state, focus rings, links -
 instead of flat black/gray; `slate` replacing `gray` as the neutral scale
 app-wide for a cooler, more deliberate feel; `Plus Jakarta Sans` (via
 `next/font/google`, self-hosted at build time - no runtime request to
-Google, CLAUDE.md's "never log/leak" spirit extended to not leaking
+Google, CONTRIBUTING.md's "never log/leak" spirit extended to not leaking
 visitor IPs to a third party either) replacing the system font stack for
 real typographic character; reusable `.card`/`.btn-primary`/
 `.btn-secondary`/`.input`/`.link-accent` component classes so every page
@@ -889,10 +889,10 @@ alongside WooCommerce (Phase 4) and Allegro (Phase 5) - Shoper is a
 Polish e-commerce platform, filling out the "more platforms to manage"
 half of what a real multi-store e-commerce manager needs.
 
-`developers.shoper.pl` itself was unreachable from this environment
-(network egress blocked), so this connector was built from Shoper's own
+`developers.shoper.pl` itself could not be reached during development,
+so this connector was built from Shoper's own
 indexed API reference pages plus a third-party Python client library's
-resource names rather than the OpenAPI spec directly. Per CLAUDE.md #9
+resource names rather than the OpenAPI spec directly. Per CONTRIBUTING.md #9
 ("never invent product technical specifications"), the class docstring
 is explicit about which details are confirmed (the auth flow, the list-
 response envelope, the product/category schema shape) versus inferred
@@ -994,9 +994,9 @@ from scratch and pass. Verified against the real running stack:
 registered a tenant, created a real "prestashop" connection via the
 HTTP API, and triggered a real Celery sync - the worker correctly
 resolved `PrestaShopConnector` and made a real outbound request
-(failing gracefully against the fake store URL, the same sandbox-proxy
-403 pattern seen for every other connector's real-network verification
-in this environment). Frontend lint/typecheck/build all pass.
+(failing gracefully against the fake store URL, the same 403 pattern
+seen for every other connector's real-network verification).
+Frontend lint/typecheck/build all pass.
 
 Phase 19 complete: `IdoSellConnector`, the fifth and last platform
 integration - and a deliberately different *kind* of connector from the
@@ -1004,7 +1004,7 @@ other four, exactly as the roadmap itself anticipated ("own research
 first, don't force the WooCommerce-shaped abstraction").
 
 IdoSell's official documentation (`idosell.com/developers`,
-`idosell.readme.io`) was network-blocked in this environment, same as
+`idosell.readme.io`) could not be reached during development, same as
 Shoper's was in Phase 17 - but this time, search-engine-indexed
 fragments only surfaced enough to confirm the authentication mechanism
 (`X-API-KEY` header), the base URL (`{store_url}/api/admin/v3`), the
@@ -1018,7 +1018,7 @@ confirmed field name would have resolved anyway.
 
 Asked directly how to proceed given that gap, the choice was: build the
 skeleton from only what's confirmed, rather than reach for a plausible-
-sounding guess CLAUDE.md #9 forbids. The resulting connector splits
+sounding guess CONTRIBUTING.md #9 forbids. The resulting connector splits
 into two honesty tiers instead of one uniform implementation:
 
 - **Reads** (`get_products`, `get_product`, `get_categories`) make the
@@ -1033,7 +1033,7 @@ into two honesty tiers instead of one uniform implementation:
   `ConnectorError` immediately: a wrong guess on a read leaves a blank
   field, but a wrong guess on a write risks corrupting a real store's
   actual inventory or pricing - a materially worse failure mode, and
-  the asymmetry mirrors CLAUDE.md's own higher bar for mutations than
+  the asymmetry mirrors CONTRIBUTING.md's own higher bar for mutations than
   reads. `get_category_parameters` still safely returns `[]`.
 
 Every `ConnectionPlatform` enum value now has a real connector -
@@ -1060,7 +1060,7 @@ rebuilt from scratch and pass. Verified against the real running stack:
 registered a tenant, created a real "idosell" connection via the HTTP
 API, and triggered a real Celery sync - the worker correctly resolved
 `IdoSellConnector` and made a real outbound request (failing gracefully
-against the fake store URL, the same sandbox-proxy 403 pattern seen for
+against the fake store URL, the same 403 pattern seen for
 every other connector). Frontend lint/typecheck/build all pass.
 
 With Phase 19 done, every connector phase from the original roadmap
@@ -1082,7 +1082,7 @@ every connector phase.
 `cost_estimate` have existed on the domain model since Phase 2, with a
 docstring saying outright they exist "so the cost guard has data to work
 with later" - this is precisely where that dormant scaffolding gets
-populated for real. Doing that honestly (CLAUDE.md #9 - never invent a
+populated for real. Doing that honestly (CONTRIBUTING.md #9 - never invent a
 number) required a real token count from the provider's own API
 response, and the existing `AIProvider.generate_structured` interface
 returned a bare `dict` with nowhere to put one. Rather than estimate
@@ -1107,11 +1107,11 @@ never imports `cp_domain.Product` either). Three modules:
 
 - `plans.py` - `PLAN_AI_BUDGETS`: Free $1.00/mo, Starter $10.00/mo, Pro
   $50.00/mo. These are our own product decisions, not a claim about
-  external fact, so hardcoding them isn't a CLAUDE.md #9 problem the way
+  external fact, so hardcoding them isn't a CONTRIBUTING.md #9 problem the way
   a vendor's pricing table would be.
 - `cost.py` - `MODEL_PRICING`, a maintained rate card of real per-token
   Anthropic prices (Claude Sonnet 5, Opus 5, Haiku 4.5) *is* the kind of
-  external fact CLAUDE.md #9 cares about, so `compute_cost` returns
+  external fact CONTRIBUTING.md #9 cares about, so `compute_cost` returns
   `None` for an unrecognized `(provider, model)` pair rather than
   guessing - a stale rate card produces an honest "unknown," never a
   fabricated number.
@@ -1187,8 +1187,8 @@ registered a real tenant against a running Postgres-backed API,
 confirmed `GET /billing` reports the Free plan's real $1.00 budget with
 $0 spent, confirmed `POST /billing/checkout`/`/billing/portal`/
 `/billing/webhook` all return a clean 503 with no Stripe key configured
-(exactly the intended degrade-gracefully behavior for this sandbox,
-which has no real Stripe credentials), and confirmed the free-plan
+(exactly the intended degrade-gracefully behavior with no real Stripe
+credentials set), and confirmed the free-plan
 checkout rejection and webhook signature rejection paths. Visually
 verified the `/billing` page end-to-end with a headless browser against
 the real API - plan cards, spend bar, and the "Billing isn't configured"

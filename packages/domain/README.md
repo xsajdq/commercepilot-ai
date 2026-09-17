@@ -18,7 +18,7 @@ Notes on the shape of things:
   (not a FK) since a recommendation can be about a `Product`, an `Offer`,
   or anything else added later.
 - Missing manufacturer data (`ean`, `cost`, `vat_rate`, `weight_kg`, ...)
-  is `NULL`, never guessed - per CLAUDE.md, an agent must never invent a
+  is `NULL`, never guessed - per CONTRIBUTING.md, an agent must never invent a
   technical spec.
 - No REST endpoints yet - this phase is schema only. See
   `apps/api/tests/test_domain_models.py` for the ORM-level tests proving

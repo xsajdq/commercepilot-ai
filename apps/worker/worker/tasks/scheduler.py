@@ -20,7 +20,7 @@ def dispatch_daily_sync() -> dict:
     """Celery Beat's daily 01:00 UTC entrypoint - keeps every tenant's
     catalog fresh before `dispatch_daily_recommendations` runs an hour
     later. Fans out one `worker.sync_connection` per `Connection`, itself
-    already retry-safe/idempotent (CLAUDE.md #11) - this task does no
+    already retry-safe/idempotent (CONTRIBUTING.md #11) - this task does no
     sync work itself, only enqueues.
 
     A dispatcher, not a full pipeline: Celery gives no ordering

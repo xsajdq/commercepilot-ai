@@ -19,7 +19,7 @@ def _multi_fernet(key: str | list[str]) -> MultiFernet:
 def encrypt_credentials(data: dict[str, Any], *, key: str | list[str]) -> str:
     """Encrypts a connector credentials dict (API keys, OAuth tokens, ...)
     for storage in Connection.encrypted_credentials. Never store the
-    plaintext dict directly - CLAUDE.md forbids plaintext credentials.
+    plaintext dict directly - CONTRIBUTING.md forbids plaintext credentials.
 
     `key` is a Fernet key (see `Fernet.generate_key()`) or a list of
     them, passed in explicitly rather than read from settings here:

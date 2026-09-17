@@ -12,7 +12,7 @@ Every route except `/health*` and `/auth/register`/`/auth/login`/
 tokens are short-lived (`ACCESS_TOKEN_EXPIRE_MINUTES`, default 15) and
 carry both the user id (`sub`) and the currently-selected `tenant_id` -
 every other route derives `tenant_id` from this token, never from a
-client-supplied header, query param, or body field (CLAUDE.md #7). If a
+client-supplied header, query param, or body field (CONTRIBUTING.md #7). If a
 user belongs to more than one tenant, `/auth/login` responds with
 `requires_tenant_selection: true` and a list of memberships instead of a
 token; the client re-calls `/auth/login` with a chosen `tenant_id`.
@@ -39,7 +39,7 @@ code carrying the meaning:
 - `/connections` - stores/marketplaces this tenant syncs from.
   `POST /connections/{id}/sync` enqueues `worker.sync_connection` and
   returns immediately with a `task_id` - sync itself always happens in
-  the Celery worker, never inline in the request (CLAUDE.md #12/#13).
+  the Celery worker, never inline in the request (CONTRIBUTING.md #12/#13).
 - `/products` - products and their offers. `POST /products` creates one
   manually (for testing without a live store); normally products arrive
   via a connection sync. `POST /products/{id}/generate-content-recommendation`,
@@ -59,7 +59,7 @@ code carrying the meaning:
   `POST .../reject` are the only way a proposed change actually takes
   effect: approving resolves and runs the underlying tool call
   synchronously (a local DB write, not a slow external call for most
-  tools, so this is fine to do inline - CLAUDE.md #13 is about
+  tools, so this is fine to do inline - CONTRIBUTING.md #13 is about
   long-running jobs, not every write) and writes a real `AuditEvent`;
   rejecting does nothing. Both are tenant-scoped and idempotent in
   effect - deciding an already-decided recommendation is a `409`, not a
@@ -79,7 +79,7 @@ code carrying the meaning:
   (archiving it) - see the roadmap's Phase 12 writeup for why.
 - `/analytics` - the analytics agent. `GET /analytics/dashboard` is
   synchronous, not enqueued - it's a handful of fast aggregate queries
-  (CLAUDE.md #13 doesn't apply to a quick read), always fresh.
+  (CONTRIBUTING.md #13 doesn't apply to a quick read), always fresh.
   `POST /analytics/narrative` enqueues `worker.generate_dashboard_narrative`
   (this one does need Celery - it makes a real LLM call) and
   `GET /analytics/narratives` lists past runs (an `AIJob`, same as

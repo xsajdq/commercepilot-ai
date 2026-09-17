@@ -10,7 +10,7 @@ class PricingInfeasibleError(Exception):
     """No finite price can achieve the requested margin: percentage-based
     costs (VAT + marketplace fee + payment fee) alone already consume
     the requested margin's share of revenue, or more. This is arithmetic,
-    not a guess - CLAUDE.md #9/#10 say don't invent a number when the
+    not a guess - CONTRIBUTING.md #9/#10 say don't invent a number when the
     real answer is "no price works," so this is raised instead of
     returning something misleading.
     """
@@ -97,7 +97,7 @@ def _margin_at_price(inputs: PricingInputs, k: Decimal, price: Decimal) -> Decim
 
 
 def compute_price_bounds(inputs: PricingInputs) -> PricingResult:
-    """Deterministic pricing math - CLAUDE.md #10: this is code, never an
+    """Deterministic pricing math - CONTRIBUTING.md #10: this is code, never an
     LLM call. Given costs/fees/margins (and, optionally, competitor
     prices and stock/velocity for context), returns the price floor that
     protects `minimum_margin_rate`, a recommendation aimed at

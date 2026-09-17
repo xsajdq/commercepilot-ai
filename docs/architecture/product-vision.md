@@ -64,6 +64,6 @@ Depends on: the deterministic Pricing Engine before any AI layer (Phase
 9), Competition Agent (Phase 14), the approval engine (Phase 8). This is
 where the largest, most defensible business value is - price changes are
 the action most directly tied to revenue, which is also exactly why the
-pricing math must stay deterministic code (CLAUDE.md #10), not an LLM
+pricing math must stay deterministic code (CONTRIBUTING.md #10), not an LLM
 guess, and why every price change is HIGH/MEDIUM risk requiring approval,
 never auto-applied.

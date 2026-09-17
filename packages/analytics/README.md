@@ -3,7 +3,7 @@
 Phase 13's deterministic dashboard-metrics engine - plain code, no
 dependencies on `cp_domain`, `cp_shared`, or anything async, same
 philosophy as `packages/pricing`: a count, a sum, or an average is a
-calculation, not a creative judgement, so it stays code (CLAUDE.md #10's
+calculation, not a creative judgement, so it stays code (CONTRIBUTING.md #10's
 "math is code" spirit, extended here from pricing to reporting). The AI
 narrative on top (`cp_ai.agents.analytics_agent`) only ever narrates the
 exact numbers this package computes - it never gets to restate or
@@ -33,14 +33,14 @@ anything itself).
 `cp_ai.agents.analytics_agent.build_dashboard_narrative` (Phase 13, in
 `packages/ai`) turns a `DashboardMetrics` into a short natural-language
 summary via `AIProvider.generate_structured` - unlike the product
-agent's content generation, there's no CLAUDE.md #18 hallucination guard
+agent's content generation, there's no CONTRIBUTING.md #18 hallucination guard
 needed here, because every number it's given is our own deterministic
 computation, not untrusted external content an attacker could steer.
 `apps/worker`'s `generate_dashboard_narrative` Celery task computes the
 metrics, generates the narrative, and stores both together as an
 `AIJob`. `apps/api`'s `GET /analytics/dashboard` computes the same
 metrics live and synchronously (a fast DB aggregate, not a slow
-external call - CLAUDE.md #13 doesn't apply), so the numbers are always
+external call - CONTRIBUTING.md #13 doesn't apply), so the numbers are always
 fresh even before anyone asks for a narrative.
 
 Run this package's own tests (pure math, no DB, no other services):

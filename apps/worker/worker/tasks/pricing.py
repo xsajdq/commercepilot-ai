@@ -31,7 +31,7 @@ def generate_price_recommendation(tenant_id: str, offer_id: str) -> dict:
 
     Never mutates a price itself - it only ever proposes a Recommendation
     for a human to approve, same as any other medium/high-risk tool call
-    (CLAUDE.md: medium/high-risk actions require human approval; AI may
+    (CONTRIBUTING.md: medium/high-risk actions require human approval; AI may
     recommend, math is code).
     """
     return asyncio.run(_generate_price_recommendation(uuid.UUID(tenant_id), uuid.UUID(offer_id)))
@@ -52,7 +52,7 @@ async def _generate_price_recommendation(tenant_id: uuid.UUID, offer_id: uuid.UU
         variant = await db.get(Variant, offer.variant_id)
         product = await db.get(Product, variant.product_id)
 
-        # Idempotency (CLAUDE.md #11): a job that runs repeatedly (a
+        # Idempotency (CONTRIBUTING.md #11): a job that runs repeatedly (a
         # schedule, a re-trigger) must never spam the approval queue
         # with duplicate proposals for the same offer.
         existing = await db.scalar(

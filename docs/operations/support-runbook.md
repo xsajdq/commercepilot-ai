@@ -9,7 +9,7 @@ an idealized support process with tooling this repo hasn't built.
 
 Support/on-call needs a user with `is_platform_admin = true`
 (`apps/api/app/db/models/user.py`). There is deliberately no
-self-service way to grant this - CLAUDE.md's tenant-isolation
+self-service way to grant this - CONTRIBUTING.md's tenant-isolation
 principles mean this is a bolt-on, audited-by-being-rare capability,
 not a normal app feature. Promote a user directly in Postgres:
 
@@ -61,7 +61,7 @@ even opened their detail page. Sort by eye for anything with a red
   happened," check whether it's still `pending_approval` (they didn't
   actually approve it), `executing` (in flight), or `failed` (approved,
   ran, and the execution itself errored - the audit log entry created
-  for that recommendation execution, per CLAUDE.md's "every mutation
+  for that recommendation execution, per CONTRIBUTING.md's "every mutation
   creates an audit log," is the next thing to check).
 
 ### 3. Cross-reference with observability (Phase 21)
@@ -78,12 +78,12 @@ them or systemic:
 - A `failed` AI job for one tenant with nothing unusual in Grafana →
   probably tenant-specific (their store's data has something the agent
   didn't expect - e.g. a product with `UNKNOWN` cost the pricing agent
-  can't safely price, per CLAUDE.md rule #9). Sentry's stack trace for
+  can't safely price, per CONTRIBUTING.md rule #9). Sentry's stack trace for
   the specific job is the next step.
 - Structured logs (`cp_shared.logging`, Phase 21a) are redaction-safe -
   they never contain access tokens, refresh tokens, API keys, or
   customer PII, so searching them by tenant_id or connection_id during
-  triage is always safe, per CLAUDE.md's "never log" list.
+  triage is always safe, per CONTRIBUTING.md's "never log" list.
 
 ### 4. A connection is stuck in `error`
 
@@ -115,7 +115,7 @@ not a display bug in the admin view.
   The one sanctioned direct-SQL exception is the `is_platform_admin`
   promotion above, done once per support hire, not as a general
   troubleshooting technique. Anything else bypasses the
-  Validation → Policy → Risk → Approval → Audit Log chain CLAUDE.md
+  Validation → Policy → Risk → Approval → Audit Log chain CONTRIBUTING.md
   requires for every mutation - "it's just support fixing a bug" is not
   an exception to that.
 - **A ticketing/paging system.** Out of scope for this phase - this

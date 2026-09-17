@@ -21,7 +21,7 @@ class Product(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("tenant_id", "sku", name="uq_product_tenant_sku"),)
 
     sku: Mapped[str] = mapped_column(String(100), nullable=False)
-    # Unknown, not guessed: per CLAUDE.md, missing manufacturer data (ean,
+    # Unknown, not guessed: per CONTRIBUTING.md, missing manufacturer data (ean,
     # cost, vat_rate, weight_kg, dimensions_cm) stays NULL rather than
     # having an agent invent a plausible-looking value.
     ean: Mapped[str | None] = mapped_column(String(32), nullable=True)

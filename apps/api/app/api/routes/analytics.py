@@ -59,7 +59,7 @@ class AnalyticsReportOut(BaseModel):
 async def _load_dashboard_metrics(db: AsyncSession, tenant_id: uuid.UUID) -> DashboardMetricsOut:
     """Live, synchronous computation - a handful of fast SELECTs plus
     pure aggregation (`cp_analytics`), not a slow external call, so this
-    is fine to do inline in a request handler (CLAUDE.md #13 is about
+    is fine to do inline in a request handler (CONTRIBUTING.md #13 is about
     long-running jobs; the AI narrative, which does make a slow LLM
     call, is the part that goes through Celery instead - see
     `trigger_narrative` below)."""

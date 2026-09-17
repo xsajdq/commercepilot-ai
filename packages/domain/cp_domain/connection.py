@@ -36,7 +36,7 @@ class Connection(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
         default=ConnectionStatus.DISCONNECTED,
     )
     # Fernet-encrypted JSON blob (see app/core/crypto.py) - never plaintext
-    # API keys/tokens at rest, per CLAUDE.md.
+    # API keys/tokens at rest, per CONTRIBUTING.md.
     encrypted_credentials: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

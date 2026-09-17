@@ -16,7 +16,7 @@ implementation side of each platform.
    but it's worth having the steps ready yourself too.
 3. **Never ask for or type a merchant's credentials into anything but the
    app's own "Add a connection" form.** Not Slack, not email, not a
-   shared doc - CLAUDE.md's "never store API credentials in plaintext"
+   shared doc - CONTRIBUTING.md's "never store API credentials in plaintext"
    starts with never having them pass through anything that isn't
    already encrypting them (`app/core/crypto.py`, Fernet, at rest).
 
@@ -45,7 +45,7 @@ The connection needs `store_url`, `consumer_key`, `consumer_secret`.
 2. **Add key.** Description can be anything (e.g. "CommercePilot").
 3. Permissions: **Read/Write** (a future phase that publishes listing
    changes needs write access even though today's sync is read-heavy -
-   see CLAUDE.md's control-flow: every write still goes through
+   see CONTRIBUTING.md's control-flow: every write still goes through
    Validation → Policy → Risk → Approval regardless of what the API key
    itself is capable of).
 4. Copy the **Consumer key** and **Consumer secret** shown immediately

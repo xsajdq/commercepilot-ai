@@ -19,11 +19,11 @@ def sync_connection(tenant_id: str, connection_id: str) -> dict:
     Never called with unvalidated input from the AI or an HTTP handler
     directly - a caller (API route, beat schedule) is responsible for
     resolving `tenant_id`/`connection_id` from an authenticated/trusted
-    context first (CLAUDE.md: never trust tenant_id from client input).
+    context first (CONTRIBUTING.md: never trust tenant_id from client input).
 
     Bridges Celery's sync task interface to the async DB/connector stack
     with `asyncio.run` - this task does its own I/O and must never be
-    invoked inline from an HTTP request handler (CLAUDE.md: background
+    invoked inline from an HTTP request handler (CONTRIBUTING.md: background
     work is Celery-only).
     """
     return asyncio.run(_sync_connection(uuid.UUID(tenant_id), uuid.UUID(connection_id)))

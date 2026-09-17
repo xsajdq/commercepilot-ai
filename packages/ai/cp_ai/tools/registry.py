@@ -14,7 +14,7 @@ class UnsafeToolSchemaError(Exception):
     registration time, not at call time: tenant_id must always come from
     `ToolContext` (the authenticated caller), never from a tool argument
     the AI - possibly echoing attacker-influenced external content per
-    CLAUDE.md #18 - could set (#7: never trust tenant_id from client
+    CONTRIBUTING.md #18 - could set (#7: never trust tenant_id from client
     input)."""
 
 

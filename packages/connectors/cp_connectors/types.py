@@ -28,7 +28,7 @@ class ConnectorProduct(BaseModel):
 
     Deliberately not cp_domain.Product: a connector never touches the
     database, and the domain model must never import a connector or
-    platform SDK (CLAUDE.md #16). The sync engine (Phase 6) is what maps
+    platform SDK (CONTRIBUTING.md #16). The sync engine (Phase 6) is what maps
     between this and the domain model.
     """
 

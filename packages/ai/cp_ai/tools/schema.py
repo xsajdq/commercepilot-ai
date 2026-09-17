@@ -20,7 +20,7 @@ ToolHandler = Callable[[BaseModel, ToolContext, AsyncSession], Awaitable[ToolRes
 
 @dataclass(frozen=True)
 class ToolPermission:
-    """What it takes to run a tool - CLAUDE.md #4: "Medium/high-risk
+    """What it takes to run a tool - CONTRIBUTING.md #4: "Medium/high-risk
     actions require human approval." `mutates` is tracked separately from
     `risk_level` because it decides whether a successful run gets an
     audit log (#5: "every mutation must create an audit log") - a

@@ -66,7 +66,7 @@ async def _run_catalog_audit(tenant_id: uuid.UUID) -> dict:
 
             proposed_count = 0
             for proposal in proposals:
-                # Idempotency (CLAUDE.md #11): never stack duplicate
+                # Idempotency (CONTRIBUTING.md #11): never stack duplicate
                 # pending catalog-fix proposals for the same entity on a
                 # repeated run.
                 existing = await db.scalar(
